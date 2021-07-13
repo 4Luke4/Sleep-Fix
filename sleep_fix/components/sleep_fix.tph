@@ -1,0 +1,125 @@
+DEFINE_ACTION_FUNCTION "sleep_fix"
+STR_VAR
+	"version" = ""
+BEGIN
+	// Initialization
+	ACTION_CLEAR_ARRAY "patch_data"
+
+	// Main
+	//ACTION_TIME "sf_op101" BEGIN
+		WITH_SCOPE BEGIN
+			INCLUDE "%mod_root%/lib/general_race_class_filter.tph"
+
+			////////////////////////////////////////////////////////////////////////
+			//// "Natural" immunities of creatures
+			////////////////////////////////////////////////////////////////////////
+
+			//ACTION_TIME "sf_patch_creatures" BEGIN
+				WITH_SCOPE BEGIN
+					PRINT ~Patching creature files ...~
+					PRINT "This step may take a while ..."
+					SILENT
+					INCLUDE "%mod_root%/lib/patch_creatures.tph"
+					LAF "sf_patch_creatures" END
+				END
+			//END
+
+			//ACTION_TIME "sf_patch_creature_items" BEGIN
+				WITH_SCOPE BEGIN
+					PRINT ~Patching creature items (the so-called "creature skins") ...~
+					PRINT "This step may take a while ..."
+					SILENT
+					INCLUDE "%mod_root%/lib/patch_creature_items.tph"
+					LAF "sf_patch_creature_items" END
+				END
+			//END
+
+			////////////////////////////////////////////////////////////////////////
+			//// Polymorph-related items
+			////////////////////////////////////////////////////////////////////////
+
+			//ACTION_TIME "sf_poly_weapons" BEGIN
+				WITH_SCOPE BEGIN
+					PRINT "Patching polymorph-related items ..."
+					PRINT "This step may take a while ..."
+					SILENT
+					INCLUDE "%mod_root%/lib/polymorph-related_items.tph"
+					LAF "sf_poly_weapons" END
+				END
+			//END
+
+			////////////////////////////////////////////////////////////////////////
+			//// All CRE / ITM / SPL files that grant immunity to Poison should also grant immunity to Nausea (GTNAUSEA)
+			////////////////////////////////////////////////////////////////////////
+
+			//ACTION_TIME "sf_immunity_to_nausea" BEGIN
+				WITH_SCOPE BEGIN
+					PRINT ~Patching creatures / items / spells that grant immunity to Poison (they should also grant immunity to Nausea) ...~
+					PRINT "This step may take a while ..."
+					SILENT
+					INCLUDE "%mod_root%/lib/immunity_to_nausea.tph"
+					LAF "sf_immunity_to_nausea" END
+				END
+			//END
+
+			////////////////////////////////////////////////////////////////////////
+			//// Anything that is immune to morale (op#23) should be immune to Hopelessness (GTHOPEL)
+			////////////////////////////////////////////////////////////////////////
+
+			//ACTION_TIME "sf_immunity_to_hopelessness" BEGIN
+				WITH_SCOPE BEGIN
+					PRINT ~Patching creatures / items / spells that grant immunity to Morale Modifier effects (they should also grant immunity to Hopelessness) ...~
+					PRINT "This step may take a while ..."
+					SILENT
+					INCLUDE "%mod_root%/lib/immunity_to_hopelessness.tph"
+					LAF "sf_immunity_to_hopelessness" END
+				END
+			//END
+
+			////////////////////////////////////////////////////////////////////////
+			//// All ITM / SPL files that grant immunity to Mind-affecting effects should also grant immunity to Sleep and Hopelessness (GTSLEEP, GTHOPEL)
+			////////////////////////////////////////////////////////////////////////
+
+			//ACTION_TIME "sf_immunity_to_mind-affecting_effects" BEGIN
+				WITH_SCOPE BEGIN
+					PRINT ~Patching items / spells that grant immunity to Mind-affecting effects (they should also grant immunity to Sleep and Hopelessness) ...~
+					PRINT "This step may take a while ..."
+					SILENT
+					INCLUDE "%mod_root%/lib/immunity_to_mind-affecting_effects.tph"
+					LAF "sf_immunity_to_mind-affecting_effects" END
+				END
+			//END
+
+			////////////////////////////////////////////////////////////////////////
+			//// Patch spells/items intended to block Sleep regardless of the recipient, each has to be manually specified (for best result)
+			////////////////////////////////////////////////////////////////////////
+
+			//ACTION_TIME "sf_manual_patching" BEGIN
+				WITH_SCOPE BEGIN
+					PRINT "Patching spells/items intended to block Sleep regardless of the recipient (all those files that require manual patching) ..."
+					SILENT
+					INCLUDE "%mod_root%/lib/manual_patching_op101.tph"
+					LAF "sf_process_table_op101"
+					STR_VAR
+						"table" = ".../sf-inline/sf_manual_patching.2da"
+					END
+				END
+			//END
+		END
+	//END
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	//// Patch spells/items intended to apply Sleep
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	//ACTION_TIME "sf_op39" BEGIN
+		WITH_SCOPE BEGIN
+			PRINT "Patching spells/items intended to apply Sleep ..."
+			SILENT
+			INCLUDE "%mod_root%/lib/apply_sleep.tph"
+			LAF "sf_op39" END
+		END
+	//END
+END

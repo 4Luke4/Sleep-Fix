@@ -1,0 +1,238 @@
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	add_global_effect
+//	– Add a global effect based on the specified parameters
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "add_global_effect"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"CRE" BEGIN
+			PATCH_IF (("%arguments%" STRING_MATCHES_REGEXP "^opcode=>[^%NL%%TAB%]+\(, [^ ,{}%NL%%TAB%]+=>[^%NL%%TAB%]+\)*$") == 0) BEGIN
+				// Set default values
+				// INT_VAR
+				SET "___#power" = 0
+				SET "___#resist_dispel" = 0
+				SET "___#duration" = 0
+				SET "___#probability2" = 0
+				SET "___#dicenumber" = 0
+				SET "___#dicesize" = 0
+				SET "___#savebonus" = 0
+				SET "___#parameter3" = 0
+				SET "___#parameter4" = 0
+				SET "___#restype" = 0
+				SET "___#lowestafflvl" = 0
+				SET "___#highestafflvl" = 0
+				SET "___#primary_type" = 0
+				SET "___#secondary_type" = 0
+				SET "___#casterlvl" = 0
+				SET "___#casterx" = "-1"
+				SET "___#castery" = "-1"
+				SET "___#targetx" = "-1"
+				SET "___#targety" = "-1"
+				SET "___#sourceslot" = "-1"
+				SET "___#target" = 1	// Self
+				SET "___#timing" = 9	// Instant/Permanent
+				SET "___#probability1" = 100
+				SET "___#insert_point" = "-1"	// Last
+				// STR_VAR
+				TEXT_SPRINT "___#resource" ""
+				TEXT_SPRINT "___#resource2" ""
+				TEXT_SPRINT "___#vvcresource" ""
+				TEXT_SPRINT "___#effsource" ""
+				TEXT_SPRINT "___#effvar" ""
+				// These can take literal expressions
+				TEXT_SPRINT "___#parameter1" "0"
+				TEXT_SPRINT "___#parameter2" "0"
+				TEXT_SPRINT "___#savetype" "0"
+				TEXT_SPRINT "___#special" "0"
+				// Extra condition(s)
+				TEXT_SPRINT "___#when" "1"	// True (non-zero)
+				// Overwrite default values if needed
+				WHILE ("%arguments%" STRING_COMPARE_CASE "") BEGIN
+					LPF "RETURN_FIRST_ENTRY"
+					STR_VAR
+						"list" = "%arguments%"
+						"separator" = ", "
+					RET
+						"arguments" = "remaining_list"
+						"key_value" = "entry"	// Ex.: opcode=>297
+					END
+					LPF "RETURN_KEY_VALUE"
+					STR_VAR
+						"list" = "%key_value%"
+					RET
+						"key"
+						"value"
+					END
+					PATCH_MATCH "%key%" WITH
+						"opcode"
+						"target"
+						"timing"
+						"parameter[1-4]"
+						"power"
+						"resist_dispel"
+						"duration"
+						"probability[1-2]"
+						"resource"
+						"dicenumber"
+						"dicesize"
+						"savetype"
+						"savebonus"
+						"special"
+						"\(low\|high\)estafflvl"
+						"insert_point"
+						"resource2"
+						"vvcresource"
+						"effsource"
+						"effvar"
+						"restype"
+						"sourceslot"
+						"when" BEGIN
+							TEXT_SPRINT "___#%key%" "%value%"
+						END
+						DEFAULT
+							PATCH_FAIL "~%DEST_FILE%~, add_global_effect: unknown variable ~%key%~"
+					END
+				END
+				// Sort out how many effects need to be added
+				LAUNCH_PATCH_FUNCTION "GET_VARIABLE_LIST"
+				RET
+					"___#number_to_add" = "counter"
+				RET_ARRAY
+					"___#resource_list"
+				END
+				FOR ("i" = 1; "%i%" <= "%___#number_to_add%"; "i" += 1) BEGIN
+					PATCH_FOR_EACH "loop_var" IN
+						"___#resource"
+					BEGIN
+						PATCH_IF (VARIABLE_IS_SET $"%loop_var%_list"("%i%")) BEGIN
+							TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("1")
+						END
+					END
+					// Main
+					LPF "EVALUATE_WHEN_CLAUSE"
+					STR_VAR
+						"condition_value" = "%___#when%"
+					RET
+						"success"
+					END
+					PATCH_IF "%success%" BEGIN
+						LPF "ADD_CRE_EFFECT_EX" END
+					END
+				END
+			END ELSE BEGIN
+				PATCH_FAIL "~%DEST_FILE%~, add_global_effect: string ~%arguments%~ appears to be malformed. Please stick to the following template: ~opcode=>318, parameter1=>1, parameter2=>3, resource=>EXAMPLE~"
+			END
+		END
+
+		"ITM" BEGIN
+			PATCH_IF (("%arguments%" STRING_MATCHES_REGEXP "^opcode=>[^%NL%%TAB%]+\(, [^ ,{}%NL%%TAB%]+=>[^%NL%%TAB%]+\)*$") == 0) BEGIN
+				// Set default values
+				// INT_VAR
+				SET "___#power" = 0
+				SET "___#resist_dispel" = 0
+				SET "___#probability2" = 0
+				SET "___#dicenumber" = 0
+				SET "___#dicesize" = 0
+				SET "___#savebonus" = 0
+				//"___#header"
+				SET "___#target" = 1	// Self
+				SET "___#timing" = 2	// Instant/While equipped
+				SET "___#probability1" = 100	// Probability1
+				SET "___#insert_point" = "-1"	// Last
+				// STR_VAR
+				TEXT_SPRINT "___#resource" ""	// Empty
+				// These can take literal expressions
+				TEXT_SPRINT "___#parameter1" "0"
+				TEXT_SPRINT "___#parameter2" "0"
+				TEXT_SPRINT "___#duration" "0"
+				TEXT_SPRINT "___#savetype" "0"
+				TEXT_SPRINT "___#special" "0"
+				// Extra condition(s)
+				TEXT_SPRINT "___#when" "1"
+				// Overwrite default values if needed
+				WHILE ("%arguments%" STRING_COMPARE_CASE "") BEGIN
+					LPF "RETURN_FIRST_ENTRY"
+					STR_VAR
+						"list" = "%arguments%"
+						"separator" = ", "
+					RET
+						"arguments" = "remaining_list"
+						"key_value" = "entry"	// Ex.: opcode=>12
+					END
+					LPF "RETURN_KEY_VALUE"
+					STR_VAR
+						"list" = "%key_value%"
+					RET
+						"key"
+						"value"
+					END
+					PATCH_MATCH "%key%" WITH
+						"opcode"
+						"target"
+						"timing"
+						"parameter[1-2]"
+						"power"
+						"resist_dispel"
+						"duration"
+						"probability[1-2]"
+						"resource"
+						"dicenumber"
+						"dicesize"
+						"savetype"
+						"savebonus"
+						"special"
+						/*"header" BEGIN
+							SET "___#header" = "%value%"
+						END*/
+						"insert_point"
+						"when" BEGIN
+							TEXT_SPRINT "___#%key%" "%value%"
+						END
+						DEFAULT
+							PATCH_FAIL "~%DEST_FILE%~, add_global_effect: unknown variable ~%key%~"
+					END
+				END
+				// Sort out how many effects need to be added
+				LAUNCH_PATCH_FUNCTION "GET_VARIABLE_LIST"
+				RET
+					"___#number_to_add" = "counter"
+				RET_ARRAY
+					"___#resource_list"
+				END
+				FOR ("i" = 1; "%i%" <= "%___#number_to_add%"; "i" += 1) BEGIN
+					PATCH_FOR_EACH "loop_var" IN
+						"___#resource"
+					BEGIN
+						PATCH_IF (VARIABLE_IS_SET $"%loop_var%_list"("%i%")) BEGIN
+							TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("1")
+						END
+					END
+					// Main
+					LPF "EVALUATE_WHEN_CLAUSE"
+					STR_VAR
+						"condition_value" = "%___#when%"
+					RET
+						"success"
+					END
+					PATCH_IF "%success%" BEGIN
+						LPF "ADD_ITMSPL_GLOBAL_EFFECT_EX" END
+					END
+				END
+			END ELSE BEGIN
+				PATCH_FAIL "~%DEST_FILE%~, add_global_effect: string ~%arguments%~ appears to be malformed. Please stick to the following template: ~opcode=>330, target=>1, parameter1=>1, timing=>1, dicenumber=>1, dicesize=>8~"
+			END
+		END
+
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, add_global_effect: unexpected type of file: ~%DEST_FILE%~"
+	END
+END

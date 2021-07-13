@@ -1,0 +1,252 @@
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+//// The following functions patch all CRE files with the appropriate sleep immunity
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "APPLY_CRE_SLEEP_IMMUNITY"
+BEGIN
+	LPF "CHECK_CRE_SLEEP_IMMUNITY"
+	RET
+		"success"
+	END
+	PATCH_IF "%success%" BEGIN
+		LPF "GENERAL_RACE_CLASS_FILTER"
+		INT_VAR
+			"general" = "%CRE_general%"
+			"race" = "%CRE_race%"
+			"class" = "%CRE_class%"
+		STR_VAR
+			"file_ext" = "cre"
+		END
+		PATCH_WITH_SCOPE BEGIN
+			DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+				"delete_effect" => "match_opcode=>101, match_parameter2=>39" // Immunity to effect => Sleep
+			END
+			LPF "APPLY_PATCHES"
+			STR_VAR
+				"edits" = "patch_data"
+			END
+		END
+	END
+	// Handle special cases
+	LPF "GENERAL_RACE_CLASS_FILTER_SPECIAL"
+	INT_VAR
+		"animation" = "%CRE_animation%"
+		"race" = "%CRE_race%"
+		"class" = "%CRE_class%"
+	STR_VAR
+		"file_res" = "%CRE_res%"
+	END
+END
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+//// The following functions check all CRE / ITM files for sleep immunity (op101, p2=39)
+//// This step should (drastically?) decrease installation times...
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "CHECK_CRE_SLEEP_IMMUNITY"
+RET
+	"success"
+BEGIN
+	// Init
+	SET "patch" = 0
+	SET "skip" = 0
+	// Main
+	// Do not use `GET_OFFSET_ARRAY "fx_array" CRE_V10_EFFECTS`
+	// In so doing, we'll avoid patching false positives (i.e., we'll not force CRE files to use EFF V2 effects internally) and decrease installation times
+	READ_BYTE 0x33 ~fx_version~
+	SET ~fx_size~ = "%fx_version%" == 0 ? 0x30 : 0x108
+	READ_LONG 0x2c4 ~ofs_fx~
+	READ_LONG 0x2c8 ~num_fx~
+	FOR (~idx~ = 0; "%idx%" < "%num_fx%"; ++"idx") BEGIN
+		SET "ofs" = "%ofs_fx%" + ("%idx%" * "%fx_size%")
+		PATCH_IF ("%fx_version%") BEGIN
+			READ_LONG ("%ofs%" + 0x8) "cur_op"
+			READ_LONG ("%ofs%" + 0x18) "cur_p2"
+		END ELSE BEGIN
+			READ_SHORT "%ofs%" "cur_op"
+			READ_LONG ("%ofs%" + 0x8) "cur_p2"
+		END
+		PATCH_MATCH ("%cur_op%") WITH
+			"101" WHEN ("%cur_p2%" == 39) BEGIN
+				// Immunity to effect => Effect: Sleep
+				SET "patch" = 1
+			END
+			"208" BEGIN
+				// Minimum HP – Skip
+				SET "skip" = 1
+				SET "idx" = "%num_fx%" + 1 // Kill FOR-loop
+			END
+			"367" BEGIN
+				// Minimum base stats – Skip
+				SET "skip" = 1
+				SET "idx" = "%num_fx%" + 1 // Kill FOR-loop
+			END
+			DEFAULT
+		END
+	END
+	SET "success" = "%patch%" AND !("%skip%")
+END
+
+DEFINE_PATCH_FUNCTION "CHECK_ITM_SLEEP_IMMUNITY"
+RET
+	"success"
+BEGIN
+	// Init
+	SET "patch" = 0
+	SET "skip" = 0
+	// Main
+	GET_OFFSET_ARRAY "fx_array" ITM_V10_GEN_EFFECTS
+	PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+		PATCH_MATCH (SHORT_AT ("%fx_off%" + 0x0)) WITH
+			"101" WHEN (LONG_AT ("%fx_off%" + 0x8) == 39) BEGIN
+				// Immunity to effect => Effect: Sleep
+				SET "patch" = 1
+			END
+			"135" BEGIN
+				// Polymorph – skip
+				SET "skip" = 1
+			END
+			"208" BEGIN
+				// Minimum HP – Skip
+				SET "skip" = 1
+			END
+			"328" WHEN ((LONG_AT ("%fx_off%" + 0x8) == IDS_OF_SYMBOL (~SPLSTATE~ ~SPECTACLES_QUEST~)) AND (SLONG_AT ("%fx_off%" + 0x2C) == 1)) BEGIN
+				// Spectacles Quest – skip
+				SET "skip" = 1
+			END
+			"367" BEGIN
+				// Minimum base stats – Skip
+				SET "skip" = 1
+			END
+			DEFAULT
+		END
+	END
+	SET "success" = "%patch%" AND !("%skip%")
+END
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+//// The following function inserts all ITM files that grant sleep immunity (op101, p2=39) into a 2DA file (along with GENERAL, RACE, CLASS of the CRE they're attached to)
+//// This step should (drastically?) decrease installation times...
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "LOG_ITEM"
+BEGIN
+	PATCH_IF !(FILE_EXISTS_IN_GAME "gt_creature_skins.2da") BEGIN
+		PATCH_WITH_SCOPE BEGIN
+			INNER_ACTION BEGIN
+				COPY ~.../sleep_fix-inline/blank~ ~override/gt_creature_skins.2da~
+					DELETE_BYTES 0x0 BUFFER_LENGTH
+					TEXT_SPRINT "initialize" "2DA V1.0%NL%*%NL%GENERAL RACE CLASS%NL%"
+					INSERT_BYTES 0x0 (STRING_LENGTH "%initialize%")
+					WRITE_ASCIIE 0x0 "%initialize%"
+				BUT_ONLY_IF_IT_CHANGES
+			END
+		END
+	END
+	// Log the item
+	INNER_ACTION BEGIN
+		COPY_EXISTING "gt_creature_skins.2da" "override"
+			READ_2DA_ENTRIES_NOW "read_skin_items" 0
+			SET "found" = 0
+			FOR ("i" = 3 ; "%i%" < "%read_skin_items%" ; "i" += 1) BEGIN
+				READ_2DA_ENTRY_FORMER "read_skin_items" "%i%" 0 "2da_item"
+				PATCH_IF ("%2da_item%" STRING_EQUAL_CASE "%itm_res%") BEGIN
+					READ_2DA_ENTRY_FORMER "read_skin_items" "%i%" 1 "2da_general"
+					PATCH_IF ("%2da_general%" STRING_CONTAINS_REGEXP "\b%CRE_general%\b") BEGIN
+						SET_2DA_ENTRY "%i%" 1 0 "%2da_general%,%CRE_general%"
+					END
+					READ_2DA_ENTRY_FORMER "read_skin_items" "%i%" 2 "2da_race"
+					PATCH_IF ("%2da_race%" STRING_CONTAINS_REGEXP "\b%CRE_race%\b") BEGIN
+						SET_2DA_ENTRY "%i%" 2 0 "%2da_race%,%CRE_race%"
+					END
+					READ_2DA_ENTRY_FORMER "read_skin_items" "%i%" 3 "2da_class"
+					PATCH_IF ("%2da_class%" STRING_CONTAINS_REGEXP "\b%CRE_class%\b") BEGIN
+						SET_2DA_ENTRY "%i%" 3 0 "%2da_class%,%CRE_class%"
+					END
+					SET "i" = "%read_skin_items%" + 1 // Kill FOR-loop
+					SET "found" = 1
+				END
+			END
+			PATCH_IF !("%found%") BEGIN
+				TO_UPPER "itm_res"
+				INSERT_2DA_ROW "%read_skin_items%" 0 "%itm_res% %CRE_general% %CRE_race% %CRE_class%"
+			END
+			PRETTY_PRINT_2DA
+		BUT_ONLY_IF_IT_CHANGES
+	END
+END
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Patch creature items
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ACTION_FUNCTION "sf_patch_creatures"
+BEGIN
+	SILENT
+	OUTER_TEXT_SPRINT "item_to_patch" ""
+	OUTER_TEXT_SPRINT "item_to_skip" ""
+	// Main
+	COPY_EXISTING_REGEXP "^.+\.cre$" "override"
+		PATCH_IF (SOURCE_SIZE > 0x2D3) BEGIN
+			PATCH_MATCH "%DEST_RES%" WITH
+				~ohb5bhal~ ~ppbhaal~ ~bhaal01~ ~demogor2~ ~trgbard~ ~belhif~ BEGIN END // Bhaal, Demogorgon, Luremaster, Belhifet (arbitrary bosses) (ignore?)
+				DEFAULT
+					// Get some relevant info
+					TEXT_SPRINT "CRE_res" "%DEST_RES%"
+					READ_LONG 0x28 "CRE_animation"
+					READ_BYTE 0x271 "CRE_general"
+					READ_BYTE 0x272 "CRE_race"
+					READ_BYTE 0x273 "CRE_class"
+					// Patch the CRE file itself if needed (f.i. "OHBGOLB1.CRE" (Greater Bone Golem))
+					LPF "APPLY_CRE_SLEEP_IMMUNITY" END
+					// Loop through its items
+					GET_OFFSET_ARRAY "CRE_items" CRE_V10_ITEMS
+					PHP_EACH "CRE_items" AS "_" => "item_off" BEGIN
+						READ_ASCII "%item_off%" "itm_res"
+						PATCH_MATCH "%itm_res%" WITH
+							~bdbelhia~ ~demogorg~ ~behamu~ ~cibossb~ ~bhaalimm~ BEGIN END // Demogorgon, Belhifet, Luremaster, Bhaal (arbitrary boss immunities) (ignore?)
+							~bddraggh~ ~bdringgh~ ~sprngb02~ ~sprngb03~ ~sprngb04~ ~sprngs04~ ~sprngw01~ ~sprngs02~ ~sprngw03~ ~sprngw04~ ~sprngz05~ BEGIN END // Exclusive to "Spirits/Ghosts" (Ghost Dragon, Shaman/Druid Spirits) (All Immunities – skip)
+							DEFAULT
+								INNER_PATCH_FILE "%itm_res%.itm" BEGIN
+									PATCH_IF ((BYTE_AT 0x18) BAND BIT2) BEGIN
+										// droppable => do nothing (skip)
+									END ELSE BEGIN
+										// undroppable
+										// Let us avoid checking the same item twice...
+										PATCH_IF ("%item_to_patch%" STRING_CONTAINS_REGEXP "\b%itm_res%\b") BEGIN
+											PATCH_IF ("%item_to_skip%" STRING_CONTAINS_REGEXP "\b%itm_res%\b") BEGIN
+												LPF "CHECK_ITM_SLEEP_IMMUNITY"
+												RET
+													"success"
+												END
+												PATCH_IF "%success%" BEGIN
+													TEXT_SPRINT "item_to_patch" "%item_to_patch% %itm_res%"
+												END ELSE BEGIN
+													TEXT_SPRINT "item_to_skip" "%item_to_skip% %itm_res%"
+												END
+											END ELSE BEGIN
+												SET "success" = 0
+											END
+										END ELSE BEGIN
+											SET "success" = 1
+										END
+										// Main
+										PATCH_IF "%success%" BEGIN
+											LPF "LOG_ITEM" END
+										END
+									END
+								END
+						END
+					END
+			END
+		END
+	BUT_ONLY_IF_IT_CHANGES
+	//PRINT "~%item_to_patch%~"
+	VERBOSE
+END

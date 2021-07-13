@@ -1,0 +1,259 @@
+DEFINE_ACTION_FUNCTION "COLLECT_RESOURCES"
+BEGIN
+	PRINT "Collecting info about SPL/ITM files that grant immunity to op39 ..."
+	SILENT
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	WITH_SCOPE BEGIN
+		COPY_EXISTING_REGEXP - "^.+\.spl$" "override"
+			PATCH_IF (SOURCE_SIZE > 0x71) BEGIN
+				PATCH_IF ((SLONG_AT NAME1) > 0) AND ((SLONG_AT NAME1) < NEXT_STRREF) BEGIN
+					READ_STRREF NAME1 "spl_name"
+				END ELSE BEGIN
+					TEXT_SPRINT "spl_name" "NO_NAME"
+				END
+				GET_OFFSET_ARRAY "ab_array" SPL_V10_HEADERS
+				PHP_EACH "ab_array" AS "_" => "ab_offset" BEGIN
+					GET_OFFSET_ARRAY2 "fx_array" "%ab_offset%" SPL_V10_HEAD_EFFECTS
+					PHP_EACH "fx_array" AS "_" => "fx_offset" BEGIN
+						PATCH_IF (SHORT_AT ("%fx_offset%") == 101) BEGIN
+							PATCH_IF (LONG_AT ("%fx_offset%" + 0x8) == 39) BEGIN
+								LPF "LOG_THIS"
+								STR_VAR
+									"file" = "spl_101_head_effects.txt"
+									"input" = "%DEST_RES% (%spl_name%)"
+									"repeat" = "no"
+									"location" = "%mod_root%"
+								END
+							END
+						END
+					END
+				END
+			END
+		BUT_ONLY_IF_IT_CHANGES
+	END
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	WITH_SCOPE BEGIN
+		COPY_EXISTING_REGEXP - "^.+\.spl$" "override"
+			PATCH_IF (SOURCE_SIZE > 0x71) BEGIN
+				PATCH_IF ((SLONG_AT NAME1) > 0) AND ((SLONG_AT NAME1) < NEXT_STRREF) BEGIN
+					READ_STRREF NAME1 "spl_name"
+				END ELSE BEGIN
+					TEXT_SPRINT "spl_name" "NO_NAME"
+				END
+				GET_OFFSET_ARRAY "ab_array" SPL_V10_HEADERS
+				PHP_EACH "ab_array" AS "_" => "ab_offset" BEGIN
+					GET_OFFSET_ARRAY2 "fx_array" "%ab_offset%" SPL_V10_HEAD_EFFECTS
+					PHP_EACH "fx_array" AS "_" => "fx_offset" BEGIN
+						PATCH_IF (SHORT_AT ("%fx_offset%") == 111) BEGIN
+							READ_ASCII ("%fx_offset%" + 0x14) "itm_resref"
+							PATCH_WITH_SCOPE BEGIN
+								INNER_PATCH_FILE "%itm_resref%.itm" BEGIN
+									PATCH_IF ((SLONG_AT NAME2) > 0) AND ((SLONG_AT NAME2) < NEXT_STRREF) BEGIN
+										READ_STRREF NAME2 "itm_name"
+									END ELSE BEGIN
+										TEXT_SPRINT "itm_name" "NO_NAME"
+									END
+									GET_OFFSET_ARRAY "fx_array" ITM_V10_GEN_EFFECTS
+									PHP_EACH "fx_array" AS "_" => "fx_offset" BEGIN
+										PATCH_IF (SHORT_AT ("%fx_offset%") == 101) BEGIN
+											PATCH_IF (LONG_AT ("%fx_offset%" + 0x8) == 39) BEGIN
+												TO_UPPER "itm_resref"
+												LPF "LOG_THIS"
+												STR_VAR
+													"file" = "itm_101_gen_effects_poly.txt"
+													"input" = "%itm_resref% (%itm_name%) => Created by %DEST_RES% (%spl_name%)"
+													"repeat" = "no"
+													"location" = "%mod_root%"
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+		BUT_ONLY_IF_IT_CHANGES
+	END
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	WITH_SCOPE BEGIN
+		COPY_EXISTING_REGEXP - "^.+\.itm$" "override"
+			PATCH_IF (SOURCE_SIZE > 0x71) BEGIN
+				PATCH_IF ((SLONG_AT NAME2) > 0) AND ((SLONG_AT NAME2) < NEXT_STRREF) BEGIN
+					READ_STRREF NAME2 "itm_name"
+				END ELSE BEGIN
+					TEXT_SPRINT "itm_name" "NO_NAME"
+				END
+				GET_OFFSET_ARRAY "ab_array" ITM_V10_HEADERS
+				PHP_EACH "ab_array" AS "_" => "ab_offset" BEGIN
+					GET_OFFSET_ARRAY2 "fx_array" "%ab_offset%" ITM_V10_HEAD_EFFECTS
+					PHP_EACH "fx_array" AS "_" => "fx_offset" BEGIN
+						PATCH_IF (SHORT_AT ("%fx_offset%") == 101) BEGIN
+							PATCH_IF (LONG_AT ("%fx_offset%" + 0x8) == 39) BEGIN
+								LPF "LOG_THIS"
+								STR_VAR
+									"file" = "itm_101_head_effects.txt"
+									"input" = "%DEST_RES% (%itm_name%)"
+									"repeat" = "no"
+									"location" = "%mod_root%"
+								END
+							END
+						END
+					END
+				END
+			END
+		BUT_ONLY_IF_IT_CHANGES
+	END
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	WITH_SCOPE BEGIN
+		COPY_EXISTING_REGEXP - "^.+\.itm$" "override"
+			PATCH_IF (SOURCE_SIZE > 0x71) BEGIN
+				PATCH_IF (((SLONG_AT 0x18) BAND BIT2) == BIT2) BEGIN
+					PATCH_IF ((SLONG_AT NAME2) > 0) AND ((SLONG_AT NAME2) < NEXT_STRREF) BEGIN
+						READ_STRREF NAME2 "itm_name"
+					END ELSE BEGIN
+						TEXT_SPRINT "itm_name" "NO_NAME"
+					END
+					GET_OFFSET_ARRAY "fx_array" ITM_V10_GEN_EFFECTS
+					PHP_EACH "fx_array" AS "_" => "fx_offset" BEGIN
+						PATCH_IF (SHORT_AT ("%fx_offset%") == 101) BEGIN
+							PATCH_IF (LONG_AT ("%fx_offset%" + 0x8) == 39) BEGIN
+								LPF "LOG_THIS"
+								STR_VAR
+									"file" = "itm_101_gen_effects.txt"
+									"input" = "%DEST_RES% (%itm_name%)"
+									"repeat" = "no"
+									"location" = "%mod_root%"
+								END
+							END
+						END
+					END
+				END
+			END
+		BUT_ONLY_IF_IT_CHANGES
+	END
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	PRINT "Collecting info about CRE files that are immune to op39 ..."
+	SILENT
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	WITH_SCOPE BEGIN
+		COPY_EXISTING_REGEXP - "^.+\.cre$" "override"
+			PATCH_IF (SOURCE_SIZE > 0x2D3) BEGIN
+				PATCH_IF ((SLONG_AT NAME1) > 0) AND ((SLONG_AT NAME1) < NEXT_STRREF) BEGIN
+					READ_STRREF NAME1 "cre_name"
+				END ELSE BEGIN
+					TEXT_SPRINT "cre_name" "NO_NAME"
+				END
+				LPF ~FJ_CRE_VALIDITY~ END
+				GET_OFFSET_ARRAY "fx_array" CRE_V10_EFFECTS
+				PHP_EACH "fx_array" AS "_" => "fx_offset" BEGIN
+					PATCH_IF (LONG_AT ("%fx_offset%" + 0x8) == 101) BEGIN
+						PATCH_IF (LONG_AT ("%fx_offset%" + 0x18) == 39) BEGIN
+							LPF "LOG_THIS"
+							STR_VAR
+								"file" = "cre_101_gen_effects.txt"
+								"input" = "%DEST_RES% (%cre_name%)"
+								"repeat" = "no"
+								"location" = "%mod_root%"
+							END
+						END
+					END
+				END
+			END
+		BUT_ONLY_IF_IT_CHANGES
+	END
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	PRINT "Collecting info about SPL/ITM files that apply op39 ..."
+	SILENT
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	WITH_SCOPE BEGIN
+		COPY_EXISTING_REGEXP - "^.+\.itm$" "override"
+			PATCH_IF (SOURCE_SIZE > 0x71) BEGIN
+				PATCH_IF ((SLONG_AT NAME2) > 0) AND ((SLONG_AT NAME2) < NEXT_STRREF) BEGIN
+					READ_STRREF NAME2 "itm_name"
+				END ELSE BEGIN
+					TEXT_SPRINT "itm_name" "NO_NAME"
+				END
+				GET_OFFSET_ARRAY "ab_array" ITM_V10_HEADERS
+				PHP_EACH "ab_array" AS "_" => "ab_offset" BEGIN
+					GET_OFFSET_ARRAY2 "fx_array" "%ab_offset%" ITM_V10_HEAD_EFFECTS
+					PHP_EACH "fx_array" AS "_" => "fx_offset" BEGIN
+						PATCH_IF (SHORT_AT ("%fx_offset%") == 39) BEGIN
+							LPF "LOG_THIS"
+							STR_VAR
+								"file" = "itm_39_head_effects.txt"
+								"input" = "%DEST_RES% (%itm_name%)"
+								"repeat" = "no"
+								"location" = "%mod_root%"
+							END
+						END
+					END
+				END
+			END
+		BUT_ONLY_IF_IT_CHANGES
+	END
+
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////
+
+	WITH_SCOPE BEGIN
+		COPY_EXISTING_REGEXP - "^.+\.spl$" "override"
+			PATCH_IF (SOURCE_SIZE > 0x71) BEGIN
+				PATCH_IF ((SLONG_AT NAME1) > 0) AND ((SLONG_AT NAME1) < NEXT_STRREF) BEGIN
+					READ_STRREF NAME1 "spl_name"
+				END ELSE BEGIN
+					TEXT_SPRINT "spl_name" "NO_NAME"
+				END
+				GET_OFFSET_ARRAY "ab_array" SPL_V10_HEADERS
+				PHP_EACH "ab_array" AS "_" => "ab_offset" BEGIN
+					GET_OFFSET_ARRAY2 "fx_array" "%ab_offset%" SPL_V10_HEAD_EFFECTS
+					PHP_EACH "fx_array" AS "_" => "fx_offset" BEGIN
+						PATCH_IF (SHORT_AT ("%fx_offset%") == 39) BEGIN
+							LPF "LOG_THIS"
+							STR_VAR
+								"file" = "spl_39_head_effects.txt"
+								"input" = "%DEST_RES% (%spl_name%)"
+								"repeat" = "no"
+								"location" = "%mod_root%"
+							END
+						END
+					END
+				END
+			END
+		BUT_ONLY_IF_IT_CHANGES
+	END
+END

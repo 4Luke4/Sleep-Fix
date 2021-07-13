@@ -1,0 +1,684 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// spells/items intended to block Sleep regardless of the recipient
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<<<<<<<< .../sf-inline/sf_sleep_immunity.2da
+2DA V1.0
+0
+											SUBSPELL				SLEEP_TYPE															FILE_EXT
+/* =====SPL files===== */
+OHBBANNO									*						GTSLP#0,GTHPL#0,GTUNC#0,GTUNC#1,GTWNG#0								spl
+OHRRAGE										*						GTSLP#0,GTHPL#0														spl
+//OHSMODE1									*						GTSLP#0,GTHPL#0														spl
+//OHSMODE4									*						GTSLP#0,GTHPL#0														spl
+OHTYR1										*						GTSLP#0,GTHPL#0														spl
+BARBARIAN_RAGE								*						GTSLP#0,GTHPL#0														spl
+BERSERKER_RAGE								*						GTSLP#0,GTHPL#0														spl
+MINSC_BERSERK								*						GTSLP#0,GTHPL#0														spl
+BARBARIAN_RAGE								*						GTSLP#0,GTHPL#0														spl
+FIVE_ROUND_ENCHANTMENT_IMMUNITY				*						GTSLP#0,GTHPL#0														spl
+THREE_ROUND_ENCHANTMENT_IMMUNITY			*						GTSLP#0,GTHPL#0														spl
+CLERIC_CHAOTIC_COMMANDS						*						GTSLP#0,GTHPL#0														spl
+CLERIC_EXALTATION							*						GTSLP#0,GTHPL#0														spl
+CLERIC_BLOOD_RAGE							*						GTSLP#0,GTHPL#0														spl
+CLERIC_IMPERVIOUS_SANCTITY_OF_MIND			*						GTSLP#0,GTHPL#0														spl
+WIZARD_MIND_BLANK							*						GTSLP#0,GTHPL#0														spl
+SLAYER_ENEMY								*						GTSLP#0,GTHPL#0														spl
+SLAYER_CHANGE_TWO							*						GTSLP#0,GTHPL#0														spl
+SLAYER_CHANGE								*						GTSLP#0,GTHPL#0														spl
+// BDFORCEW
+/* =====ITM files===== */
+CHALCY3										*						GTSLP#0,GTHPL#0														itm
+//KILLSW01									*						GTSLP#0,GTHPL#0														itm
+//OHBWING2									*						GTSLP#0,GTHPL#0														itm
+AMUL17										*						GTSLP#0,GTHPL#0														itm
+IPSION										*						GTSLP#0,GTHPL#0														itm
+//TROLLALL									*						GTSLP#0,GTHPL#0														itm
+SLAYERW2									*						GTSLP#0,GTHPL#0														itm
+SLAYERW3									*						GTSLP#0,GTHPL#0														itm
+SLAYERW4									*						GTSLP#0,GTHPL#0														itm
+PLYJELLY									*						GTSLP#0,GTHPL#0,GTUNC#0,GTUNC#1,GTWNG#0,GTPSN#0,GTKND#0,GTKND#1		itm
+GVALOR1										*						GTSLP#0,GTHPL#0														itm
+HELMDEF										*						GTSLP#0																itm
+
+>>>>>>>>
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Process a table of SF instructions
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ACTION_FUNCTION "sf_process_table_op101"
+STR_VAR
+	"table" = ""
+BEGIN
+	COPY - "%table%" "override"
+		// remove commented rows
+		REPLACE_TEXTUALLY CASE_INSENSITIVE EVALUATE_REGEXP "/\*.+\*/" ""
+		REPLACE_TEXTUALLY CASE_INSENSITIVE EVALUATE_REGEXP "^//.+$" ""
+		// read in the data
+		COUNT_2DA_COLS ~colcount~
+		READ_2DA_ENTRIES_NOW ~sf_table_data~ ~%colcount%~
+		// go through the table
+		FOR (~this_row~ = 0 ; "%this_row%" < "%sf_table_data%" ; ~this_row~ += 1) BEGIN
+			READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 0 ~resref~
+			READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 1 ~subspell~
+			READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 3 ~file_ext~
+			// adjust ~%resource%~ in case of subspell
+			PATCH_IF (IDS_OF_SYMBOL ("SPELL" "%resref%") != "-1") BEGIN
+				PATCH_IF ("%subspell%" STRING_COMPARE_CASE "*") BEGIN
+					TEXT_SPRINT "resref" "%%resref%%%subspell%"
+				END ELSE BEGIN
+					TEXT_SPRINT "resref" "%%resref%%"
+				END
+			END
+			// Make sure the current file does exist
+			PATCH_IF (FILE_EXISTS_IN_GAME ~%resref%.%file_ext%~) BEGIN
+				READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 2 ~identifier~
+				// ITM vs. SPL
+				PATCH_MATCH "%file_ext%" WITH
+					"itm" BEGIN
+						TEXT_SPRINT "function" "EDIT_ITEM"
+					END
+					"spl" BEGIN
+						TEXT_SPRINT "function" "EDIT_SPELL"
+					END
+					DEFAULT
+						PATCH_FAIL "Unexpected type of file"
+				END
+				// Apply the actual patches ...
+				PATCH_WITH_SCOPE BEGIN
+					PATCH_IF (("%identifier%" STRING_CONTAINS_REGEXP ",") == 0) BEGIN
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"delete_effect" => "match_opcode=>318, match_parameter1=>0, match_parameter2=>0, match_resource=>{%identifier%}"	// Protection from resource => EA >= ANYONE
+							"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>0, parameter2=>0, special=>0, resource=>{%identifier%}"	// Protection from resource => EA >= ANYONE
+						END
+					END ELSE BEGIN
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"delete_effect" => "match_opcode=>318, match_parameter1=>0, match_parameter2=>0, match_resource=>%identifier%"	// Protection from resource => EA >= ANYONE
+							"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>0, parameter2=>0, special=>0, resource=>%identifier%"	// Protection from resource => EA >= ANYONE
+						END
+					END
+					DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+						"delete_effect2" => "match_opcode=>101, match_parameter2=>39"	// Immunity to effect => Sleep
+					END
+					INNER_ACTION BEGIN
+						LAF "%function%"
+						STR_VAR
+							"edits" = "patch_data"
+							"file_list" = "%resref%"
+						END
+					END
+				END
+			END
+		END
+	BUT_ONLY_IF_IT_CHANGES
+END
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// spells/items intended to apply Sleep (Wing Buffet)
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<<<<<<<< .../sf-inline/sf_apply_wing_buffet.2da
+2DA V1.0
+0
+								SUBSPELL			HEADER			MATCH_OPCODE			MATCH_PARAMETER1						MATCH_PARAMETER2			MATCH_RESOURCE				MATCH_PROBABILITY1			MATCH_PROBABILITY2			MATCH_DICENUMBER			MATCH_DICESIZE			MATCH_SAVETYPE			MATCH_SAVEBONUS			MATCH_SPECIAL			SLEEP_TYPE			FILE_EXT		GAME
+/* =====SPL files===== */
+ABZAWAY							*					-1				235,39					30,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+BALTH01							*					-1				235,39					30,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+BALTH09							*					-1				39,235					same,30									same,2						same						same						same						same						same					same					same					same					W0					spl				*
+CH3AWAY							*					-1				235,39					20,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+DGWHIRL							*					-1				235,39					20,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+JWSIEGE							*					-1				39						same									same						same						same						same						same						same					same					same					same					W0					spl				*
+JWWHIRL							*					-1				235,39					1,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+OHBBCLT0						*					-1				235,39					30,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+SPCL911B						*					-1				235,39					20,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+PSIONIC_PROJECT_FORCE			*					-1				235,39					20,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+FAN_BLOW						*					-1				235,39					30,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+HELL_BUFFET						*					-1				235,39					30,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+DRAGON_WING_BUFFET				*					-1				235,39					30,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+WIZARD_BIGBYS_CLENCHED_FIST		*					-1				235,39					100,same								3,same						same						same						same						same						same					same					same					same					W0					spl				*
+WIZARD_BIGBYS_CLENCHED_FIST		A					-1				39,215,215				same									same,1,0					same,SPBGBFS1,SPBGBFS2		same						same						same						same					same					same					same					W0					spl				*
+WIZARD_BIGBYS_CRUSHING_HAND		*					-1				235,39					100,same								3,same						same						same						same						same						same					same					same					same					W0					spl				*
+WIZARD_BIGBYS_CRUSHING_HAND		A					-1				39,215,215				same									same,1,0					same,SPBGBFS1,SPBGBFS2		same						same						same						same					same					same					same					W0					spl				*
+WIZARD_DRAGONS_BREATH			*					-1				235,39					30,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+WIZARD_COMET					*					-1				235,39					30,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+SPWISH27						*					-1				235,39					30,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+SPYANC01						*					-1				235,39					30,same									2,same						same						same						same						same						same					same					same					same					W0					spl				*
+/* =====ITM files===== */
+AURSTAF							*					-1				235,39					20,same									2,same						same						same						same						same						same					same					same					same					W0					itm				*
+AX1H16							*					-1				235,39					20,same									2,same						same						same						same						same						same					same					same					same					W0					itm				*
+RAVAG01							*					-1				235,39					20,same									2,same						same						same						same						same						same					same					same					same					W0					itm				*
+STAF21							*					-1				235,39					20,same									2,same						same						same						same						same						same					same					same					same					W0					itm				*
+STAF22							*					-1				235,39					20,same									2,same						same						same						same						same						same					same					same					same					W0					itm				*
+
+>>>>>>>>
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// spells/items intended to apply Sleep (Unconsciousness)
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<<<<<<<< .../sf-inline/sf_apply_unconsciousness.2da
+2DA V1.0
+0
+										SUBSPELL			HEADER				MATCH_OPCODE				MATCH_PARAMETER1											MATCH_PARAMETER2					MATCH_RESOURCE				MATCH_PROBABILITY1			MATCH_PROBABILITY2			MATCH_DICENUMBER			MATCH_DICESIZE			MATCH_SAVETYPE			MATCH_SAVEBONUS			MATCH_SPECIAL			SLEEP_TYPE			FILE_EXT		GAME
+/* =====SPL files===== */
+BDSHA12C								*					-1					39,141,61					same,0,(120<<8)+(120<<16)+(120<<24)							same,39,0+(25<<16)					same						same						same						same						same					same					same					same					U0					spl				bgee,bg2ee
+BDSHA12C								*					-1					39,215,61,174				same,same,(180<<8)+(210<<16)+(80<<24),same					same,0,0+(25<<16),same				same,NECROH,same,#EFF_M07	same						same						same						same					same					same					same					U0					spl				iwdee
+// CDHGTRL
+// CDTORGAL
+// CDTRLBLZ
+SPCL751A								*					-1					39							same														same								same						same						same						same						same					same					same					same					U0					spl				bgee,bg2ee
+SPCL751A								*					-1					39,139						same,37340													same								same						same						same						same						same					same					same					same					U0					spl				iwdee
+VIEKANG_LIGHTNING						*					-1					39							same														same								same						same						same						same						same					same					same					same					U0					spl				*
+SURE_SLEEP								*					-1					39							same														same								same						same						same						same						same					same					same					same					U0					spl				*
+MEPHIT_COLOR_SPRAY						*					-1					39,141,61,7,7,7,7,7,7,7		same,0,(60<<8)+(60<<16)+(120<<24),34,35,34,35,34,35,34		same,4,0+(25<<16),5,6,3,4,0,2,1		same						same						same						same						same					same					same					same					U0					spl				*
+// SPIN966
+WIZARD_COLOR_SPRAY						*					-1					39,141,61,7,7,7,7,7,7,7		same,0,(60<<8)+(60<<16)+(120<<24),34,35,34,35,34,35,34		same,4,0+(25<<16),5,6,3,4,0,2,1		same						same						same						same						same					same					same					same					U0					spl				bgee,bg2ee
+WIZARD_COLOR_SPRAY						*					-1					39,139						same,37340													same								same						same						same						same						same					same					same					same					U0					spl				iwdee
+WIZARD_SPHERE_OF_CHAOS					*					-1					39							same														same								same						same						same						same						same					same					same					same					U0					spl				bgee,bg2ee
+WIZARD_SPHERE_OF_CHAOS					*					-1					39,139						same,37340													same								same						same						same						same						same					same					same					same					U0					spl				iwdee
+// TROLLREG
+// #JEDSLP
+// CDIWDTR1
+// CDIWDTR2
+INNATE_RETRIBUTION						*					-1					39,139						same,37340													same								same						same						same						same						same					same					same					same					U0					spl				*
+// INNATE_WEREWOLF_DEATH
+// INNATE_WYLFDENES_DEATH_ANIMATION
+// INNATE_DRAGON_DEATH_ANIMATION
+// INNATE_POLYMORPH_TO_DOG
+CLERIC_SMASHING_WAVE					*					-1					39,139,139					same,37340,20438											same								same						same						same						same						same					same					same					same					U0					spl				*
+TRAP_SLEEP								*					-1					39,139						same,37340													same								same						same						same						same						same					same					same					same					U0					spl				*
+WIZARD_GREAT_SHOUT						*					-1					39,139						same,37340													same								same						same						same						same						same					same					same					same					U0					spl				*
+BDBLUN07								*					-1					39							same														same								same						same						same						same						same					same					same					same					U0					spl				*
+// BDTROLL1
+// BDULORI
+// BDWOLFD1
+BDXBOW01								*					-1					39,141						same,0														same,39								same						same						same						same						same					same					same					same					U0					spl				*
+SHOAL1									*					-1					39,141						same,0														same,39								same						same						same						same						same					same					same					same					U0					spl				*
+/* =====ITM files===== */
+SPER12									*					-1					39							same														same								same						same						same						same						same					same					same					same					U0					itm				*
+BDSPIDGA								*					-1					39,141,50					same,0,(119<<8)+(0<<16)+(0<<24)								same,25,0+(20<<16)					same						same						same						same						same					same					same					same					U0					itm				*
+BDWYRMLI								*					-1					39							same														same								same						same						same						same						same					same					same					same					U0					itm				*
+
+>>>>>>>>
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// spells/items intended to apply Sleep (Unconsciousness, Psionic attacks)
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<<<<<<<< .../sf-inline/sf_apply_unconsciousness_psionic_attacks.2da
+2DA V1.0
+0
+										SUBSPELL			HEADER				MATCH_OPCODE				MATCH_PARAMETER1											MATCH_PARAMETER2					MATCH_RESOURCE				MATCH_PROBABILITY1			MATCH_PROBABILITY2			MATCH_DICENUMBER			MATCH_DICESIZE			MATCH_SAVETYPE			MATCH_SAVEBONUS			MATCH_SPECIAL			SLEEP_TYPE			FILE_EXT		GAME
+/* =====SPL files===== */
+PSIONIC_MIND_BLAST						*					-1					39							same														same								same						same						same						same						same					same					same					same					U1					spl				*
+MIND_CRIPPLE							*					-1					39							same														same								same						same						same						same						same					same					same					same					U1					spl				*
+/* =====ITM files===== */
+
+>>>>>>>>
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// spells/items intended to apply Sleep (Knockdown)
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<<<<<<<< .../sf-inline/sf_apply_knockdown.2da
+2DA V1.0
+0
+							SUBSPELL			HEADER			MATCH_OPCODE			MATCH_PARAMETER1						MATCH_PARAMETER2			MATCH_RESOURCE			MATCH_PROBABILITY1			MATCH_PROBABILITY2			MATCH_DICENUMBER			MATCH_DICESIZE			MATCH_SAVETYPE			MATCH_SAVEBONUS			MATCH_SPECIAL			SLEEP_TYPE			FILE_EXT		GAME
+/* =====SPL files===== */
+CH3DRAIN					*					-1				39						same									same						same					same						same						same						same					same					same					same					K0					spl				*
+CH3FLASH					*					-1				39,215					same									same						same,SPDISPMA			same						same						same						same					same					same					same					K0					spl				*
+CH3WEAK						*					-1				39,215					same									same						same,SPSTRENH			same						same						same						same					same					same					same					K0					spl				*
+JWFALL						*					-1				39						same									same						same					same						same						same						same					same					same					same					K0					spl				*
+JWSLEEP						*					-1				39						same									same						same					same						same						same						same					same					same					same					K0					spl				*
+OHDDIVRT					*					-1				39						same									same						same					same						same						same						same					same					same					same					K0					spl				*
+ABAZIGAL_SHOCKWAVE			*					-1				39						same									same						same					same						same						same						same					same					same					same					K0					spl				*
+SAREVOK_SOULSTEAL			*					-1				39						same									same						same					same						same						same						same					same					same					same					K0					spl				*
+/* =====ITM files===== */
+OHBBRVGR					*					-1				39						same									same						same					same						same						same						same					same					same					same					K0					itm				*
+
+>>>>>>>>
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// spells/items intended to apply Sleep (Knockdown, Ground-based attacks)
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<<<<<<<< .../sf-inline/sf_apply_knockdown_ground-based_attacks.2da
+2DA V1.0
+0
+							SUBSPELL			HEADER			MATCH_OPCODE			MATCH_PARAMETER1						MATCH_PARAMETER2			MATCH_RESOURCE			MATCH_PROBABILITY1			MATCH_PROBABILITY2			MATCH_DICENUMBER			MATCH_DICESIZE			MATCH_SAVETYPE			MATCH_SAVEBONUS			MATCH_SPECIAL			SLEEP_TYPE			FILE_EXT		GAME
+/* =====SPL files===== */
+SPOGRE01					*					-1				39						same									same						same					same						same						same						same					same					same					same					K1					spl				bgee,bg2ee
+SPOGRE01					*					-1				39,139					same,37340								same						same					same						same						same						same					same					same					same					K1					spl				iwdee
+CLERIC_EARTHQUAKE			*					-1				39						same									same						same					same						same						same						same					same					same					same					K1					spl				bgee,bg2ee
+CLERIC_EARTHQUAKE			*					-1				39,139					same,37340								same						same					same						same						same						same					same					same					same					K1					spl				iwdee
+BPGIAQKE					*					-1				39						same									same						same					same						same						same						same					same					same					same					K1					spl				*
+OHBQUAKE					*					-1				39						same									same						same					same						same						same						same					same					same					same					K1					spl				*
+/* =====ITM files===== */
+
+>>>>>>>>
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// spells/items intended to apply Sleep (Nausea)
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<<<<<<<< .../sf-inline/sf_apply_nausea.2da
+2DA V1.0
+0
+							SUBSPELL			HEADER			MATCH_OPCODE			MATCH_PARAMETER1						MATCH_PARAMETER2			MATCH_RESOURCE			MATCH_PROBABILITY1			MATCH_PROBABILITY2			MATCH_DICENUMBER			MATCH_DICESIZE			MATCH_SAVETYPE			MATCH_SAVEBONUS			MATCH_SPECIAL			SLEEP_TYPE			FILE_EXT		GAME
+/* =====SPL files===== */
+OHDMASK						*					-1				39						same									same						same					same						same						same						same					same					same					same					N0					spl				*
+OHRGROG						*					-1				39						same									same						same					same						same						same						same					same					same					same					N0					spl				*
+MEPHIT_STINKING_CLOUD		*					-1				39,174					same									same						same,EFF_E05			same						same						same						same					same					same					same					N0					spl				*
+TRAP_STINKING_CLOUD			*					-1				39,174					same									same						same,EFF_E05			same						same						same						same					same					same					same					N0					spl				bgee,bg2ee
+TRAP_STINKING_CLOUD			*					-1				39,139					same,37340								same						same					same						same						same						same					same					same					same					N0					spl				iwdee
+WIZARD_STINKING_CLOUD		*					-1				39						same									same						same					same						same						same						same					same					same					same					N0					spl				bgee,bg2ee
+WIZARD_STINKING_CLOUD		*					-1				39,139					same,37340								same						same					same						same						same						same					same					same					same					N0					spl				iwdee
+SPWM187						*					-1				39						same									same						same					same						same						same						same					same					same					same					N0					spl				*
+INNATE_ZOMBIE_LORD_AURA		*					-1				39,139,139				same,37340,34529						same						same					same						same						same						same					same					same					same					N0					spl				*
+// BDGASSA1
+// BDGASSA3
+GTPOTN#2					*					-1				39						same									same						same					same						same						same						same					same					same					same					N0					spl				*
+/* =====ITM files===== */
+STAF15						*					1				39						same									same						same					same						same						same						same					same					same					same					N0					itm				*
+// BDGIBBBR
+
+>>>>>>>>
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// spells/items intended to apply (true) Sleep
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<<<<<<<< .../sf-inline/sf_apply_true_sleep.2da
+2DA V1.0
+0
+									SUBSPELL			HEADER			MATCH_OPCODE			MATCH_PARAMETER1									MATCH_PARAMETER2				MATCH_RESOURCE						MATCH_PROBABILITY1			MATCH_PROBABILITY2			MATCH_DICENUMBER			MATCH_DICESIZE			MATCH_SAVETYPE			MATCH_SAVEBONUS			MATCH_SPECIAL			SLEEP_TYPE			FILE_EXT		GAME
+/* =====SPL files===== */
+CLERIC_COMMAND						*					-1				39,215,61,174			same,same,(120<<8)+(90<<16)+(30<<24),same			same,same,0+(25<<16),same		same,SPCOMEND,same,EFF_E05			same						same						same						same					same					same					same					S0					spl				bgee,bg2ee
+CLERIC_COMMAND						*					-1				39,139,174,215,61		same,37613,same,same,(80<<8)+(210<<16)+(80<<24)		same,same,same,0,0+(30<<16)		same,same,#EFF_P04,ENCHAH,same		same						same						same						same					same					same					same					S0					spl				iwdee
+CLERIC_GREATER_COMMAND				*					-1				39,215,61,174			same,same,(120<<8)+(90<<16)+(30<<24),same			same,same,0+(25<<16),same		same,SPCOMEND,same,EFF_E07			same						same						same						same					same					same					same					S0					spl				bgee,bg2ee
+CLERIC_GREATER_COMMAND				*					-1				39,139,215,61,174		same,37613,same,(80<<8)+(210<<16)+(80<<24),same		same,same,0,0+(30<<16),same		same,same,ENCHAH,same,#EFF_P04		same						same						same						same					same					same					same					S0					spl				iwdee
+WIZARD_SLEEP						*					-1				39,139,174,141,61		same,26371,same,0,(120<<8)+(90<<16)+(30<<24)		same,same,same,8,0+(25<<16)		same,same,EFF_E05,same,same			same						same						same						same					same					same					same					S0					spl				bgee
+WIZARD_SLEEP						*					-1				39,139,174,141,61		same,14001,same,0,(120<<8)+(90<<16)+(30<<24)		same,same,same,8,0+(25<<16)		same,same,EFF_E05,same,same			same						same						same						same					same					same					same					S0					spl				bg2ee
+WIZARD_SLEEP						*					-1				39,139,174,215,61		same,37613,same,0,(80<<8)+(210<<16)+(80<<24)		same,same,same,0,0+(30<<16)		same,same,#EFF_M05,ENCHAH,same		same						same						same						same					same					same					same					S0					spl				iwdee
+INNATE_BEHOLDER_SLEEP				*					-1				39,139,174,215,61		same,37613,same,same,(80<<8)+(210<<16)+(80<<24)		same,same,same,0,0+(30<<16)		same,same,#EFF_M05,ENCHAH,same		same						same						same						same					same					same					same					S0					spl				*
+INNATE_JACKALWERE_GAZE_INTERNAL		*					-1				39,139,174,215,61		same,37613,same,same,(80<<8)+(210<<16)+(80<<24)		same,same,same,0,0+(30<<16)		same,same,#EFF_M05,ENCHAH,same		same						same						same						same					same					same					same					S0					spl				*
+WIZARD_POWER_WORD_SLEEP				*					-1				39,215,174,61			same,same,same,(0<<8)+(100<<16)+(0<<24)				same,0,same,0+(30<<16)			same,MTOUCHH,#FF_P107,same			same						same						same						same					same					same					same					S0					spl				iwdee
+BDSLEEP								*					-1				39,139,174,215			same,26371,same,same								same,same,same,1				same,same,EFF_E05,SPNWCHRM			same						same						same						same					same					same					same					S0					spl				*
+/* =====ITM files===== */
+CDFAMPSD							*					-1				39						same												same							same								same						same						same						same					same					same					same					S0					itm				*
+DAGG13								*					-1				39,141,174				same,0,same											same,8,same						same,same,EFF_P04					same						same						same						same					same					same					same					S0					itm				*
+DWBOLT01							*					-1				39,139					same,14001											same							same								same						same						same						same					same					same					same					S0					itm				*
+PSDCLAW								*					-1				39						same												same							same								same						same						same						same					same					same					same					S0					itm				*
+WAND08								*					-1				39,141,61,174			same,0,(120<<8)+(90<<16)+(30<<24),same				same,8,0+(25<<16),same			same,same,same,EFF_M05				same						same						same						same					same					same					same					S0					itm				bgee,bg2ee
+WAND08								*					-1				39,139,61,215,174		same,37613,(80<<8)+(210<<16)+(80<<24),same,same		same,same,0+(30<<16),0,same		same,same,same,ENCHAH,#EFF_M05		same						same						same						same					same					same					same					S0					itm				iwdee
+UHALB3B								*					-1				39,139,215,61			same,37613,same,(80<<8)+(210<<16)+(80<<24)			same,same,0,0+(30<<16)			same,same,ENCHAH,same				same						same						same						same					same					same					same					S0					itm				*
+// BDDAGG06
+// BDDAGG07
+DWDART01							*					-1				39,139					same,14001											same							same								same						same						same						same					same					same					same					S0					itm				*
+
+>>>>>>>>
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// spells/items intended to apply Sleep (Hopelessness)
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<<<<<<<< .../sf-inline/sf_apply_hopelessness.2da
+2DA V1.0
+0
+								SUBSPELL			HEADER			MATCH_OPCODE			MATCH_PARAMETER1									MATCH_PARAMETER2			MATCH_RESOURCE						MATCH_PROBABILITY1			MATCH_PROBABILITY2			MATCH_DICENUMBER			MATCH_DICESIZE			MATCH_SAVETYPE			MATCH_SAVEBONUS			MATCH_SPECIAL			SLEEP_TYPE			FILE_EXT		GAME
+/* =====SPL files===== */
+WIZARD_EMOTION_HOPELESSNESS		*					-1				328,39,174,215,61		same,same,same,same,(120<<8)+(90<<16)+(30<<24)		0,same,same,1,0+(25<<16)	same,same,EFF_E05,GLDUSTH,same		same						same						same						same					same					same					same					H0					spl				bgee,bg2ee
+/* =====ITM files===== */
+
+>>>>>>>>
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Process a table of SF instructions
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ACTION_FUNCTION "sf_process_table_op39"
+STR_VAR
+	"table" = ""
+BEGIN
+	COPY - "%table%" "override"
+		// remove commented rows
+		REPLACE_TEXTUALLY CASE_INSENSITIVE EVALUATE_REGEXP "/\*.+\*/" ""
+		REPLACE_TEXTUALLY CASE_INSENSITIVE EVALUATE_REGEXP "^//.+$" ""
+		// read in the data
+		COUNT_2DA_COLS ~colcount~
+		READ_2DA_ENTRIES_NOW ~sf_table_data~ ~%colcount%~
+		// go through the table
+		FOR (~this_row~ = 0 ; "%this_row%" < "%sf_table_data%" ; ~this_row~ += 1) BEGIN
+			READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 16 ~game_variant~
+			INNER_PATCH_SAVE ~game_variant~ ~%game_variant%~ BEGIN
+				REPLACE_TEXTUALLY CASE_INSENSITIVE EXACT_MATCH "," " "
+			END
+			PATCH_IF (~%game_variant%~ STRING_EQUAL_CASE ~*~) OR (GAME_IS ~%game_variant%~) BEGIN
+				READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 0 ~resref~
+				READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 1 ~subspell~
+				READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 15 ~file_ext~
+				// adjust ~%resource%~ in case of subspell
+				PATCH_IF (IDS_OF_SYMBOL ("SPELL" "%resref%") != "-1") BEGIN
+					PATCH_IF ("%subspell%" STRING_COMPARE_CASE "*") BEGIN
+						TEXT_SPRINT "resref" "%%resref%%%subspell%"
+					END ELSE BEGIN
+						TEXT_SPRINT "resref" "%%resref%%"
+					END
+				END
+				// Make sure ~%resref%.%file_ext%~ does exist
+				PATCH_IF (FILE_EXISTS_IN_GAME ~%resref%.%file_ext%~) BEGIN
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ ~%this_row%~ 2 ~2da_header~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 3 ~2da_opcode~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 4 ~2da_parameter1~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 5 ~2da_parameter2~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 6 ~2da_resource~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 7 ~2da_probability1~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 8 ~2da_probability2~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 9 ~2da_dicenumber~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 10 ~2da_dicesize~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 11 ~2da_savetype~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 12 ~2da_savebonus~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 13 ~2da_special~
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 14 ~identifier~
+					// ITM vs. SPL
+					PATCH_MATCH "%file_ext%" WITH
+						"itm" BEGIN
+							SET "header_length" = 0x38
+							TEXT_SPRINT "function" "EDIT_ITEM"
+						END
+						"spl" BEGIN
+							SET "header_length" = 0x28
+							TEXT_SPRINT "function" "EDIT_SPELL"
+						END
+						DEFAULT
+							PATCH_FAIL "Unexpected type of file"
+					END
+					// Patch all the specified sleep-related opcodes
+					// Quick sanity check
+					LPF "sf_process_table_op39_sanity_check"
+					RET
+						"counter"
+					RET_ARRAY
+						"2da_header_array" "2da_opcode_array" "2da_parameter1_array" "2da_parameter2_array" "2da_resource_array" "2da_probability1_array" "2da_probability2_array" "2da_dicenumber_array" "2da_dicesize_array" "2da_savetype_array" "2da_savebonus_array" "2da_special_array"
+					END
+					FOR ("i" = 1 ; "%i%" <= "%counter%" ; "i" += 1) BEGIN
+						// header
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_header_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "hdr" $"2da_header_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "hdr" $"2da_header_array"("1")
+						END
+						// opcode
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_opcode_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "op" $"2da_opcode_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "op" $"2da_opcode_array"("1")
+						END
+						// parameter1
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_parameter1_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "p1" $"2da_parameter1_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "p1" $"2da_parameter1_array"("1")
+						END
+						PATCH_IF ("%p1%" STRING_COMPARE_CASE "same") BEGIN
+							LPF "EVALUATE_EXPRESSION"
+							INT_VAR
+								"effect_number" = "%op%"
+							STR_VAR
+								"expression" = "%p1%"
+							RET
+								"p1" = "value"
+							END
+						END
+						// parameter2
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_parameter2_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "p2" $"2da_parameter2_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "p2" $"2da_parameter2_array"("1")
+						END
+						PATCH_IF ("%p2%" STRING_COMPARE_CASE "same") BEGIN
+							LPF "EVALUATE_EXPRESSION"
+							INT_VAR
+								"effect_number" = "%op%"
+							STR_VAR
+								"expression" = "%p2%"
+							RET
+								"p2" = "value"
+							END
+						END
+						// resource
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_resource_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "res" $"2da_resource_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "res" $"2da_resource_array"("1")
+						END
+						// probability1
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_probability1_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "prob1" $"2da_probability1_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "prob1" $"2da_probability1_array"("1")
+						END
+						// probability2
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_probability2_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "prob2" $"2da_probability2_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "prob2" $"2da_probability2_array"("1")
+						END
+						// dicenumber
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_dicenumber_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "dnum" $"2da_dicenumber_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "dnum" $"2da_dicenumber_array"("1")
+						END
+						// dicesize
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_dicesize_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "dsize" $"2da_dicesize_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "dsize" $"2da_dicesize_array"("1")
+						END
+						// savetype
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_savetype_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "stype" $"2da_savetype_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "stype" $"2da_savetype_array"("1")
+						END
+						// savebonus
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_savebonus_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "sbonus" $"2da_savebonus_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "sbonus" $"2da_savebonus_array"("1")
+						END
+						// special
+						LPF "ARRAY_CONTAINS"
+						STR_VAR
+							"array" = "2da_special_array"
+							"key" = "%i%"
+						RET
+							"found"
+						END
+						PATCH_IF "%found%" BEGIN
+							TEXT_SPRINT "spec" $"2da_special_array"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "spec" $"2da_special_array"("1")
+						END
+						// Make an EFF file for each Sleep-related effect
+						// The EFF file would mainly have: `Opcode`, `parameter1/2/3` (as appropriate), `resource1/2/3` (if necessary), `special`, `probability1=100`, `dicenumber/dicesize` (as appropriate), `parent_resource=(EFFECT_[TYPE])`. All other fields would be zero/empty.
+						LPF "MAKE_SLEEP_EFFECT"
+						STR_VAR
+							"sleep_type" = "%identifier%"
+						RET
+							"filename"
+						END
+						// Apply the actual patches
+						PATCH_IF ("%filename%" STRING_COMPARE_CASE "") BEGIN
+							PATCH_WITH_SCOPE BEGIN
+								INNER_ACTION BEGIN
+									ACTION_DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+										"alter_effect" => "check_globals=>0, header=>%hdr%, match_opcode=>%op%, match_parameter1=>%p1%, match_parameter2=>%p2%, match_resource=>%res%, match_special=>%spec%, match_probability1=>%prob1%, match_probability2=>%prob2%, match_dicenumber=>%dnum%, match_dicesize=>%dsize%, match_savetype=>%stype%, match_savebonus=>%sbonus%, opcode=>177, parameter1=>0, parameter2=>2, special=>0, resource=>%filename%"	// Use EFF file => EA = ANYONE
+									END
+									LAF "%function%"
+									STR_VAR
+										"edits" = "patch_data"
+										"file_list" = "%resref%"
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+		END
+	BUT_ONLY
+END
+
+DEFINE_PATCH_FUNCTION "sf_process_table_op39_sanity_check"
+RET
+	"counter"
+RET_ARRAY
+	"2da_header_array" "2da_opcode_array" "2da_parameter1_array" "2da_parameter2_array" "2da_resource_array" "2da_probability1_array" "2da_probability2_array" "2da_dicenumber_array" "2da_dicesize_array" "2da_savetype_array" "2da_savebonus_array" "2da_special_array"
+BEGIN
+	SET "counter" = 1
+	// Main
+	PATCH_FOR_EACH "x" IN "2da_header" "2da_opcode" "2da_parameter1" "2da_parameter2" "2da_resource" "2da_probability1" "2da_probability2" "2da_dicenumber" "2da_dicesize" "2da_savetype" "2da_savebonus" "2da_special" BEGIN
+		TEXT_SPRINT "y" "%%x%%"
+		PATCH_MATCH "%y%" WITH
+			"^[^ ,%NL%%TAB%]+$" BEGIN
+				CLEAR_ARRAY "%x%_array"
+				TEXT_SPRINT $"%x%_array"("1") "%y%"
+			END
+			"^[^ ,%NL%%TAB%]+\(,[^ ,%NL%%TAB%]+\)*$" BEGIN
+				LPF "LENGTH_OF_LIST"
+				STR_VAR
+					"list" = "%y%"
+					"separator" = ","
+				RET
+					"length"
+				END
+				// Sanity check
+				PATCH_IF ("%counter%" != 1) BEGIN
+					PATCH_IF ("%counter%" != "%length%") BEGIN
+						PATCH_FAIL "~%resref%.%file_ext%~, sf_process_table_op39_sanity_check: ~%x%_array~ contains %length% elements whereas the previous list contains %counter% elements"
+					END ELSE BEGIN
+						SET "counter" = "%length%"
+					END
+				END ELSE BEGIN
+					SET "counter" = "%length%"
+				END
+				// Init
+				CLEAR_ARRAY "%x%_array"
+				SET "i" = 0
+				// Main
+				WHILE ("%y%" STRING_COMPARE_CASE "") BEGIN
+					LPF "RETURN_FIRST_ENTRY"
+					STR_VAR
+						"list" = "%y%"
+						"separator" = ","
+					RET
+						"y" = "remaining_list"	// 2,3
+						"entry"	// 1
+					END
+					SET "i" += 1
+					TEXT_SPRINT $~%x%_array~(~%i%~) "%entry%"
+				END
+			END
+			DEFAULT
+				PATCH_FAIL "~%resref%.%file_ext%~, sf_process_table_op39_sanity_check: malformed ~%x%~"
+		END
+	END
+END

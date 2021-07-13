@@ -1,0 +1,105 @@
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	add_effect
+//	– Add an effect based on the specified parameters
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "add_effect"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"SPL" BEGIN
+			PATCH_IF (("%arguments%" STRING_MATCHES_REGEXP "^opcode=>[^%NL%%TAB%]+\(, [^ ,{}%NL%%TAB%]+=>[^%NL%%TAB%]+\)*$") == 0) BEGIN
+				// Set default values
+				// INT_VAR
+				SET "___#header" = 0
+				SET "___#power" = 0
+				SET "___#probability2" = 0
+				SET "___#timing" = 0
+				SET "___#resist_dispel" = 0
+				SET "___#dicenumber" = 0
+				SET "___#dicesize" = 0
+				SET "___#savebonus" = 0
+				SET "___#target" = 2	// Projectile target
+				SET "___#probability1" = 100	// Probability1
+				SET "___#insert_point" = "-1"	// Last
+				// STR_VAR
+				TEXT_SPRINT "___#resource" ""	// Empty
+				// These can take literal expressions
+				TEXT_SPRINT "___#parameter1" "0"
+				TEXT_SPRINT "___#parameter2" "0"
+				TEXT_SPRINT "___#duration" "0"
+				TEXT_SPRINT "___#savetype" "0"
+				TEXT_SPRINT "___#special" "0"
+				// Overwrite default values if needed
+				WHILE ("%arguments%" STRING_COMPARE_CASE "") BEGIN
+					LPF "RETURN_FIRST_ENTRY"
+					STR_VAR
+						"list" = "%arguments%"
+						"separator" = ", "
+					RET
+						"arguments" = "remaining_list"
+						"key_value" = "entry"	// Ex.: opcode=>12
+					END
+					LPF "RETURN_KEY_VALUE"
+					STR_VAR
+						"list" = "%key_value%"
+					RET
+						"key"
+						"value"
+					END
+					PATCH_MATCH "%key%" WITH
+						"opcode"
+						"target"
+						"timing"
+						"parameter[1-2]"
+						"power"
+						"resist_dispel"
+						"duration"
+						"probability[1-2]"
+						"resource"
+						"dicenumber"
+						"dicesize"
+						"savetype"
+						"savebonus"
+						"special"
+						"header"
+						"insert_point" BEGIN
+							TEXT_SPRINT "___#%key%" "%value%"
+						END
+						DEFAULT
+							PATCH_FAIL "~%DEST_FILE%~, add_effect: unknown variable ~%key%~"
+					END
+				END
+				// Sort out how many effects need to be added
+				LAUNCH_PATCH_FUNCTION "GET_VARIABLE_LIST"
+				RET
+					"___#number_to_add" = "counter"
+				RET_ARRAY
+					"___#parameter1_list"
+					"___#parameter2_list"
+				END
+				FOR ("i" = 1; "%i%" <= "%___#number_to_add%"; "i" += 1) BEGIN
+					PATCH_FOR_EACH "loop_var" IN
+						"___#parameter1"
+						"___#parameter2"
+					BEGIN
+						PATCH_IF (VARIABLE_IS_SET $"%loop_var%_list"("%i%")) BEGIN
+							TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("%i%")
+						END ELSE BEGIN
+							TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("1")
+						END
+					END
+					LPF "ADD_SPELL_EFFECT_EX" END
+				END
+			END ELSE BEGIN
+				PATCH_FAIL "~%DEST_FILE%~, add_effect: string ~%arguments%~ is malformed. Stick to the following template: ~opcode=>1, target=>1, parameter1=>1, timing=>1~"
+			END
+		END
+
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, add_effect: unexpected type of file"
+	END
+END

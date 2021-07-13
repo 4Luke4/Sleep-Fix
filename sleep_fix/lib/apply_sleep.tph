@@ -1,0 +1,931 @@
+DEFINE_ACTION_FUNCTION "sf_op39"
+BEGIN
+	COPY_EXISTING_REGEXP "^.+\.\(spl\|itm\)$" "override"
+		PATCH_IF (SOURCE_SIZE > 0x71) BEGIN
+			// Discard scripted/automatic "Sleep"
+			PATCH_MATCH "%DEST_RES%" WITH
+				"BDSLEEP" BEGIN END
+				DEFAULT
+					// Keep track of the current "%DEST_FILE%"
+					TEXT_SPRINT "current_file" "%DEST_FILE%"
+					TO_LOWER "current_file"
+					// Do some preprocessing
+					PATCH_MATCH "%DEST_RES%" WITH
+						"%WIZARD_BIGBYS_CLENCHED_FIST%A" "%WIZARD_BIGBYS_CRUSHING_HAND%A" BEGIN // Remove pathological op337
+							PATCH_WITH_SCOPE BEGIN
+								DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+									"delete_effect" => "match_opcode=>337, match_parameter1=>39, match_parameter2=>101" // Remove effects by opcode => Match 'Parameter 2' value: 39 ; Effect: Immunity to effect (101)
+								END
+								LPF "APPLY_PATCHES"
+								STR_VAR
+									"edits" = "patch_data"
+								END
+							END
+						END
+						"BALTH01" BEGIN // There's a mismatch between op235's "resist_dispel" (2) and op39's "resist_dispel" (0), so make sure it will qualify as "Wing Buffet"
+							PATCH_WITH_SCOPE BEGIN
+								DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+									"alter_effect" => "header=>0, match_opcode=>235, resist_dispel=>0" // Wing Buffet
+								END
+								LPF "APPLY_PATCHES"
+								STR_VAR
+									"edits" = "patch_data"
+								END
+							END
+						END
+						// There's a mismatch between op39's "resist_dispel" (1) and op12's "resist_dispel" (0), so make sure they will fully qualify as "Knockdown"
+						// Moreover, since this spell changes the environment (it does not affect the creatures directly), make sure it bypasses Magic Resistance
+						"%CLERIC_EARTHQUAKE%" "SPOGRE01" "OHBQUAKE" BEGIN
+							PATCH_WITH_SCOPE BEGIN
+								DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+									"alter_effect" => "match_opcode=>{39,12}, resist_dispel=>2" // Sleep, Damage
+								END
+								LPF "APPLY_PATCHES"
+								STR_VAR
+									"edits" = "patch_data"
+								END
+							END
+						END
+						"CDFAMPSD" "PSDCLAW" BEGIN // Pseudo Dragon (Familiar) => it's supposed to be an Unconscious effect, not Sleep, going by the description in the Find Familiar spell...
+							PATCH_WITH_SCOPE BEGIN
+								DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+									"delete_effect" => "match_opcode=>324, match_parameter2=>{15,19}" // Immunity to resource and message => RACE = ELF, RACE = HALF_ELF
+								END
+								LPF "APPLY_PATCHES"
+								STR_VAR
+									"edits" = "patch_data"
+								END
+							END
+						END
+						DEFAULT
+					END
+					// Distinguish between ITM and SPL
+					PATCH_MATCH "%DEST_EXT%" WITH
+						"ITM" BEGIN
+							GET_OFFSET_ARRAY "ab_array" ITM_V10_HEADERS
+						END
+						"SPL" BEGIN
+							GET_OFFSET_ARRAY "ab_array" SPL_V10_HEADERS
+						END
+						DEFAULT
+							PATCH_FAIL "~%DEST_EXT%~, sf_op39: invalid file type"
+					END
+					// Main
+					PHP_EACH "ab_array" AS "hdr" => "ab_off" BEGIN
+						LPF "CHECK_SLEEP" END
+					END
+			END
+		END
+	BUT_ONLY_IF_IT_CHANGES
+END
+
+DEFINE_PATCH_FUNCTION "CHECK_SLEEP"
+BEGIN
+	// Get all relevant info about op39
+	LPF "GET_SLEEP_DATA"
+	RET_ARRAY
+		"sleep_data"
+	END
+	// For each op39 found, determine its type
+	PHP_EACH "sleep_data" AS "sleep_fields" => "_" BEGIN
+		LPF "DETERMINE_SLEEP_TYPE"
+		RET
+			"sleep_type"
+		END
+		LPF "ALTER_SLEEP" END
+	END
+END
+
+DEFINE_PATCH_FUNCTION "ALTER_SLEEP"
+BEGIN
+	// Remove all relevant op139 / op142 effects on the current ability ("%hdr%")
+	// That is because op39 automatically provides the "Unconscious" string and a portrait icon (via the Special field)
+	PATCH_WITH_SCOPE BEGIN
+		DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+			"delete_effect" => "check_globals=>0, header=>%hdr%, match_opcode=>139, match_parameter1=>{20438,14001}" // Display string
+			"delete_effect2" => "check_globals=>0, header=>%hdr%, match_opcode=>139, match_parameter1=>{37340,34529,37613}, when=>%is_iwd%" // Display string
+			"delete_effect3" => "check_globals=>0, header=>%hdr%, match_opcode=>139, match_parameter1=>26371, when=>%is_bg1%" // Display string
+			"delete_effect4" => "check_globals=>0, header=>%hdr%, match_opcode=>142, match_parameter2=>{%STATDESC_HOPELESSNESS%,%STATDESC_SLEEP%,%STATDESC_NAUSEATED%,%STATDESC_UNCONSCIOUS%}" // Display portrait icon
+		END
+		LPF "APPLY_PATCHES"
+		STR_VAR
+			"edits" = "patch_data"
+		END
+	END
+	// Main
+	GET_OFFSET_ARRAY2 "fx_array" "%ab_off%" 0x6a 4 0x1e 2 0x20 2 0x30
+	PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+		PATCH_MATCH SHORT_AT ("%fx_off%") WITH
+			"39" BEGIN // sleep opcode, full match
+				PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+					PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0xC) == "%sleep_fields_2%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+								PATCH_IF (LONG_AT ("%fx_off%" + 0xE) == "%sleep_fields_4%") BEGIN
+									PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+										PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+											PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+												PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+													PATCH_IF (LONG_AT ("%fx_off%" + 0x24) == "%sleep_fields_9%") BEGIN
+														PATCH_IF (SLONG_AT ("%fx_off%" + 0x28) == "%sleep_fields_10%") BEGIN
+															PATCH_IF (SLONG_AT ("%fx_off%" + 0x2C) == "%sleep_fields_11%") BEGIN
+																PATCH_WITH_SCOPE BEGIN
+																	PATCH_MATCH "%sleep_type%" WITH
+																		"S" BEGIN
+																			SET "p2" = 0 // Wake on damage? Yes
+																			SET "spec" = "%STATDESC_SLEEP%"
+																		END
+																		"N" BEGIN
+																			SET "p2" = 1 // Wake on damage? No
+																			SET "spec" = "%STATDESC_NAUSEATED%"
+																		END
+																		"H" BEGIN
+																			SET "p2" = 1 // Wake on damage? No
+																			SET "spec" = "%STATDESC_HOPELESSNESS%"
+																		END
+																		"U" BEGIN
+																			SET "p2" = 1 // Wake on damage? No
+																			SET "spec" = "%STATDESC_UNCONSCIOUS%"
+																		END
+																		"K" "W" BEGIN
+																			SET "p2" = 1 // Wake on damage? No
+																			SET "spec" = SLONG_AT ("%fx_off%" + 0x2C)
+																		END
+																		DEFAULT
+																			PATCH_FAIL "~%DEST_FILE%~, ALTER_SLEEP: unknown sleep type ~%sleep_type%~"
+																	END
+																	LAUNCH_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+																	INT_VAR
+																		"op" = 39 // Sleep
+																		"p1" = 0 // Unused
+																		"p2"
+																		"spec"
+																	RET
+																		"filename"
+																	END
+																	WRITE_SHORT ("%fx_off%") 177 // Use EFF file
+																	WRITE_LONG ("%fx_off%" + 0x4) 0 // ANYONE
+																	WRITE_LONG ("%fx_off%" + 0x8) 2 // EA.IDS
+																	WRITE_ASCIIE ("%fx_off%" + 0x14) "%filename%" #8
+																	WRITE_LONG ("%fx_off%" + 0x2C) 0 // Special – Unused
+																END
+															END
+														END
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+			"235" BEGIN // wing buffet, ignore saving throw and save bonus, match duration or less. Dragon Wing Buffet offers no save and lasts 1 second less than the knockdown. Any duplicates of it would naturally follow this pattern.
+				PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+					PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0xC) == "%sleep_fields_2%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+								PATCH_IF (LONG_AT ("%fx_off%" + 0xE) <= "%sleep_fields_4%") BEGIN
+									PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+										PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+											PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+												PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+													PATCH_WITH_SCOPE BEGIN
+														LAUNCH_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+														INT_VAR
+															"op" = 235 // Wing buffet
+															"p1" = SLONG_AT ("%fx_off%" + 0x4) // Strength
+															"p2" = LONG_AT ("%fx_off%" + 0x8) // Direction
+															"spec" = 0 // Unused
+														RET
+															"filename"
+														END
+														WRITE_SHORT ("%fx_off%") 177 // Use EFF file
+														WRITE_LONG ("%fx_off%" + 0x4) 0 // ANYONE
+														WRITE_LONG ("%fx_off%" + 0x8) 2 // EA.IDS
+														WRITE_ASCIIE ("%fx_off%" + 0x14) "%filename%" #8
+														WRITE_LONG ("%fx_off%" + 0x2C) 0 // Special – Unused
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+			"215" BEGIN // visual effect, full match
+				PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+					PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0xC) == "%sleep_fields_2%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+								PATCH_IF (LONG_AT ("%fx_off%" + 0xE) == "%sleep_fields_4%") BEGIN
+									PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+										PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+											PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+												PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+													PATCH_IF (LONG_AT ("%fx_off%" + 0x24) == "%sleep_fields_9%") BEGIN
+														PATCH_IF (SLONG_AT ("%fx_off%" + 0x28) == "%sleep_fields_10%") BEGIN
+															PATCH_WITH_SCOPE BEGIN
+																READ_ASCII ("%fx_off%" + 0x14) "vvc_res"
+																// Let us avoid patching unrelated effects (it may happen when a SPL/ITM applies Sleep + something else – see "SPCL751.SPL")
+																PATCH_IF ("%vvc_res%" STRING_COMPARE_CASE "SPCONFUS") BEGIN
+																	LAUNCH_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+																	INT_VAR
+																		"op" = 215 // Play visual effect
+																		"p1" = 0 // Unused
+																		"p2" = LONG_AT ("%fx_off%" + 0x8) // Play where?
+																		"spec" = 0 // Unused
+																	STR_VAR
+																		"res" = "%vvc_res%"
+																	RET
+																		"filename"
+																	END
+																	WRITE_SHORT ("%fx_off%") 177 // Use EFF file
+																	WRITE_LONG ("%fx_off%" + 0x4) 0 // ANYONE
+																	WRITE_LONG ("%fx_off%" + 0x8) 2 // EA.IDS
+																	WRITE_ASCIIE ("%fx_off%" + 0x14) "%filename%" #8
+																	WRITE_LONG ("%fx_off%" + 0x2C) 0 // Special – Unused
+																END
+															END
+														END
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+			"141" BEGIN // lighting effects, ignore timing/duration
+				PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+					PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+								PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+									PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+										PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+											PATCH_IF (LONG_AT ("%fx_off%" + 0x24) == "%sleep_fields_9%") BEGIN
+												PATCH_IF (SLONG_AT ("%fx_off%" + 0x28) == "%sleep_fields_10%") BEGIN
+													PATCH_WITH_SCOPE BEGIN
+														LAUNCH_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+														INT_VAR
+															"op" = 141 // Lighting effects
+															"p1" = SLONG_AT ("%fx_off%" + 0x4) // Target
+															"p2" = LONG_AT ("%fx_off%" + 0x8) // Effect
+															"spec" = 0 // Unused
+														RET
+															"filename"
+														END
+														WRITE_SHORT ("%fx_off%") 177 // Use EFF file
+														WRITE_LONG ("%fx_off%" + 0x4) 0 // ANYONE
+														WRITE_LONG ("%fx_off%" + 0x8) 2 // EA.IDS
+														WRITE_ASCIIE ("%fx_off%" + 0x14) "%filename%" #8
+														WRITE_LONG ("%fx_off%" + 0x2C) 0 // Special – Unused
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+			"174" WHEN ((BYTE_AT ("%fx_off%" + 0xC) != 3) AND (BYTE_AT ("%fx_off%" + 0xC) != 4)) BEGIN // play sound (initial), ignore duration, exclude delayed timing modes
+				PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+					PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+								PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+									PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+										PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+											PATCH_IF (LONG_AT ("%fx_off%" + 0x24) == "%sleep_fields_9%") BEGIN
+												PATCH_IF (SLONG_AT ("%fx_off%" + 0x28) == "%sleep_fields_10%") BEGIN
+													PATCH_WITH_SCOPE BEGIN
+														READ_ASCII ("%fx_off%" + 0x14) "wav_res"
+														LAUNCH_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+														INT_VAR
+															"op" = 174 // Play sound
+															"p1" = 0 // Unused
+															"p2" = 0 // Unused
+															"spec" = 0 // Unused
+														STR_VAR
+															"res" = "%wav_res%"
+														RET
+															"filename"
+														END
+														WRITE_SHORT ("%fx_off%") 177 // Use EFF file
+														WRITE_LONG ("%fx_off%" + 0x4) 0 // ANYONE
+														WRITE_LONG ("%fx_off%" + 0x8) 2 // EA.IDS
+														WRITE_ASCIIE ("%fx_off%" + 0x14) "%filename%" #8
+														WRITE_LONG ("%fx_off%" + 0x2C) 0 // Special – Unused
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+			"174" WHEN ((BYTE_AT ("%fx_off%" + 0xC) == 3) OR (BYTE_AT ("%fx_off%" + 0xC) == 4)) BEGIN // play sound (ending), match only delayed timing modes
+				PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+					PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+							PATCH_IF (LONG_AT ("%fx_off%" + 0xE) == "%sleep_fields_4%") BEGIN
+								PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+									PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+										PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+											PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+												PATCH_IF (LONG_AT ("%fx_off%" + 0x24) == "%sleep_fields_9%") BEGIN
+													PATCH_IF (SLONG_AT ("%fx_off%" + 0x28) == "%sleep_fields_10%") BEGIN
+														PATCH_WITH_SCOPE BEGIN
+															READ_ASCII ("%fx_off%" + 0x14) "wav_res"
+															LAUNCH_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+															INT_VAR
+																"op" = 174 // Play sound
+																"p1" = 0 // Unused
+																"p2" = 0 // Unused
+																"spec" = 0 // Unused
+															STR_VAR
+																"res" = "%wav_res%"
+															RET
+																"filename"
+															END
+															WRITE_SHORT ("%fx_off%") 177 // Use EFF file
+															WRITE_LONG ("%fx_off%" + 0x4) 0 // ANYONE
+															WRITE_LONG ("%fx_off%" + 0x8) 2 // EA.IDS
+															WRITE_ASCIIE ("%fx_off%" + 0x14) "%filename%" #8
+															WRITE_LONG ("%fx_off%" + 0x2C) 0 // Special – Unused
+														END
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+			"328" WHEN ((LONG_AT ("%fx_off%" + 0x8) == "%SPLSTATE_HOPELESSNESS%") AND (SLONG_AT ("%fx_off%" + 0x2C) == 1)) BEGIN // spellstate, full match
+				PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+					PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0xC) == "%sleep_fields_2%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+								PATCH_IF (LONG_AT ("%fx_off%" + 0xE) == "%sleep_fields_4%") BEGIN
+									PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+										PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+											PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+												PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+													PATCH_IF (LONG_AT ("%fx_off%" + 0x24) == "%sleep_fields_9%") BEGIN
+														PATCH_IF (SLONG_AT ("%fx_off%" + 0x28) == "%sleep_fields_10%") BEGIN
+															PATCH_WITH_SCOPE BEGIN
+																LAUNCH_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+																INT_VAR
+																	"op" = 328 // Set spell state
+																	"p1" = 0 // Unused
+																	"p2" = "%SPLSTATE_HOPELESSNESS%" // State
+																	"spec" = 1 // IWD2 mode
+																RET
+																	"filename"
+																END
+																WRITE_SHORT ("%fx_off%") 177 // Use EFF file
+																WRITE_LONG ("%fx_off%" + 0x4) 0 // ANYONE
+																WRITE_LONG ("%fx_off%" + 0x8) 2 // EA.IDS
+																WRITE_ASCIIE ("%fx_off%" + 0x14) "%filename%" #8
+																WRITE_LONG ("%fx_off%" + 0x2C) 0 // Special – Unused
+															END
+														END
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+			"61" BEGIN // Creature RGB color fade, ignore timing/duration
+				PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+					PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+								PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+									PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+										PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+											PATCH_IF (LONG_AT ("%fx_off%" + 0x24) == "%sleep_fields_9%") BEGIN
+												PATCH_IF (SLONG_AT ("%fx_off%" + 0x28) == "%sleep_fields_10%") BEGIN
+													PATCH_WITH_SCOPE BEGIN
+														LAUNCH_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+														INT_VAR
+															"op" = 61 // Creature RGB color fade
+															"p1" = SLONG_AT ("%fx_off%" + 0x4) // Color
+															"p2" = LONG_AT ("%fx_off%" + 0x8) // Fade speed
+															"spec" = 0 // Unused
+														RET
+															"filename"
+														END
+														WRITE_SHORT ("%fx_off%") 177 // Use EFF file
+														WRITE_LONG ("%fx_off%" + 0x4) 0 // ANYONE
+														WRITE_LONG ("%fx_off%" + 0x8) 2 // EA.IDS
+														WRITE_ASCIIE ("%fx_off%" + 0x14) "%filename%" #8
+														WRITE_LONG ("%fx_off%" + 0x2C) 0 // Special – Unused
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+			"7" BEGIN // Set color, full match
+				PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+					PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0xC) == "%sleep_fields_2%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+								PATCH_IF (LONG_AT ("%fx_off%" + 0xE) == "%sleep_fields_4%") BEGIN
+									PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+										PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+											PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+												PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+													PATCH_IF (LONG_AT ("%fx_off%" + 0x24) == "%sleep_fields_9%") BEGIN
+														PATCH_IF (SLONG_AT ("%fx_off%" + 0x28) == "%sleep_fields_10%") BEGIN
+															PATCH_WITH_SCOPE BEGIN
+																LAUNCH_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+																INT_VAR
+																	"op" = 7 // Set color
+																	"p1" = SLONG_AT ("%fx_off%" + 0x4) // Color
+																	"p2" = LONG_AT ("%fx_off%" + 0x8) // Location
+																	"spec" = 0 // Unused
+																RET
+																	"filename"
+																END
+																WRITE_SHORT ("%fx_off%") 177 // Use EFF file
+																WRITE_LONG ("%fx_off%" + 0x4) 0 // ANYONE
+																WRITE_LONG ("%fx_off%" + 0x8) 2 // EA.IDS
+																WRITE_ASCIIE ("%fx_off%" + 0x14) "%filename%" #8
+																WRITE_LONG ("%fx_off%" + 0x2C) 0 // Special – Unused
+															END
+														END
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+			"12" WHEN ("%sleep_type%" STRING_EQUAL_CASE "K") AND (SHORT_AT ("%fx_off%" + 0xA) == "%DMGTYPE_CRUSHING%") BEGIN // Damage (CRUSHING), ignore timing/duration/dicenumber/dicesize/saving throw and save bonus
+				PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+					PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+								PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+									PATCH_WITH_SCOPE BEGIN
+										LAUNCH_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+										INT_VAR
+											"op" = 12 // Damage
+											"p1" = SLONG_AT ("%fx_off%" + 0x4) // Amount
+											"p2" = LONG_AT ("%fx_off%" + 0x8) // Mode, Damage type
+											"dnum" = LONG_AT ("%fx_off%" + 0x1C) // # dice thrown
+											"dsize" = LONG_AT ("%fx_off%" + 0x20) // Dice size
+											"stype" = LONG_AT ("%fx_off%" + 0x24) // Savetype – this is necessary due to op12-only specific bit fields (Bypass mirror image, Ignore difficulty)
+											"sbonus" = SLONG_AT ("%fx_off%" + 0x28) // Savebonus – this is necessary due to op12-only specific bit fields (see above)
+											"spec" = SLONG_AT ("%fx_off%" + 0x2C) // Flags
+										RET
+											"filename"
+										END
+										WRITE_SHORT ("%fx_off%") 177 // Use EFF file
+										WRITE_LONG ("%fx_off%" + 0x4) 0 // ANYONE
+										WRITE_LONG ("%fx_off%" + 0x8) 2 // EA.IDS
+										WRITE_ASCIIE ("%fx_off%" + 0x14) "%filename%" #8
+										WRITE_LONG ("%fx_off%" + 0x1C) 0 // maximum level
+										WRITE_LONG ("%fx_off%" + 0x20) 0 // minimum level
+										WRITE_LONG ("%fx_off%" + 0x24) 0 // Savetype (it's been moved to the EFF)
+										WRITE_LONG ("%fx_off%" + 0x28) 0 // Savebonus (it's been moved to the EFF)
+										WRITE_LONG ("%fx_off%" + 0x2C) 0 // Special – Unused
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+			DEFAULT
+		END
+	END
+END
+
+// Helper
+
+DEFINE_PATCH_FUNCTION "GET_SLEEP_DATA"
+RET_ARRAY
+	"sleep_data"
+BEGIN
+	// Initialize
+	CLEAR_ARRAY "sleep_data"
+	// Main
+	GET_OFFSET_ARRAY2 "fx_array" "%ab_off%" 0x6a 4 0x1e 2 0x20 2 0x30
+	PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+		PATCH_IF (SHORT_AT ("%fx_off%") == 39) BEGIN
+			PATCH_MATCH (BYTE_AT ("%fx_off%" + 0xC)) WITH
+				"1" "2" "[4-9]" BEGIN END // Ignore permanent and invalid timing modes
+				"0" "3" "10" WHEN (BYTE_AT ("%fx_off%" + 0x2) != 1) BEGIN // Ignore target=self
+					READ_BYTE ("%fx_off%" + 0x2) "op39_tgt"
+					READ_BYTE ("%fx_off%" + 0x3) "op39_pwr"
+					READ_BYTE ("%fx_off%" + 0xC) "op39_tmg"
+					READ_BYTE ("%fx_off%" + 0xD) "op39_rd"
+					READ_LONG ("%fx_off%" + 0xE) "op39_dur"
+					READ_BYTE ("%fx_off%" + 0x12) "op39_prob1"
+					READ_BYTE ("%fx_off%" + 0x13) "op39_prob2"
+					READ_LONG ("%fx_off%" + 0x1C) "op39_dnum"
+					READ_LONG ("%fx_off%" + 0x20) "op39_dsize"
+					READ_LONG ("%fx_off%" + 0x24) "op39_stype"
+					READ_SLONG ("%fx_off%" + 0x28) "op39_sbonus"
+					READ_SLONG ("%fx_off%" + 0x2C) "op39_spec"
+					TEXT_SPRINT $"sleep_data"("%op39_tgt%" "%op39_pwr%" "%op39_tmg%" "%op39_rd%" "%op39_dur%" "%op39_prob1%" "%op39_prob2%" "%op39_dnum%" "%op39_dsize%" "%op39_stype%" "%op39_sbonus%" "%op39_spec%") "irrelevant"
+				END
+				DEFAULT
+			END
+		END
+	END
+END
+
+DEFINE_PATCH_FUNCTION "DETERMINE_SLEEP_TYPE"
+RET
+	"sleep_type"
+BEGIN
+	// Initialize
+	TEXT_SPRINT "sleep_type" "?"
+	// Pay attention to special cases!
+	PATCH_MATCH "%DEST_RES%" WITH
+		"%WIZARD_BIGBYS_CLENCHED_FIST%A" "%WIZARD_BIGBYS_CRUSHING_HAND%A" BEGIN
+			TEXT_SPRINT "sleep_type" "K"
+		END
+		"%CLERIC_SMASHING_WAVE%" BEGIN
+			// This spell summons a 5-ft. wide wave of water that moves in the direction willed by the caster, striking all in its path with **massive** force...
+			TEXT_SPRINT "sleep_type" "K"
+		END
+		"BDSHA12C" BEGIN // This is delivered by Lesser Earth Spirits. Since they're humanoid size, make sure giant creatures are immune to it...
+			TEXT_SPRINT "sleep_type" "K"
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					//"add_effect" => "opcode=>318, parameter1=>{%GENERAL_GIANTHUMANOID%,0}, parameter2=>{103,13}, resource=>BDSHA12C, insert_point=>0" // Protection from resource
+					"add_effect" => "opcode=>318, parameter2=>13, resource=>BDSHA12C, insert_point=>0" // Protection from resource => Personal space > 3 – This means that Clay/Stone Golems can be knocked down. Inaccurate...? Dunno, since they're only slightly taller / bulkier than Lesser Earth Elementals...
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+		DEFAULT
+			// Initial guess based on op39's Duration
+			PATCH_IF ("%sleep_fields_4%" <= 6) BEGIN
+				TEXT_SPRINT "sleep_type" "K"
+			END ELSE BEGIN
+				TEXT_SPRINT "sleep_type" "U"
+			END
+			// Second guess based on op39's Icon (Special field)
+			PATCH_MATCH "%sleep_fields_11%" WITH
+				"%STATDESC_NAUSEATED%" BEGIN
+					TEXT_SPRINT "sleep_type" "N"
+				END
+				"%STATDESC_HOPELESSNESS%" BEGIN
+					TEXT_SPRINT "sleep_type" "H"
+				END
+				DEFAULT
+			END
+			// Main
+			GET_OFFSET_ARRAY2 "fx_array" "%ab_off%" 0x6a 4 0x1e 2 0x20 2 0x30
+			PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+				PATCH_MATCH (SHORT_AT ("%fx_off%")) WITH
+					"318" "324" BEGIN
+						PATCH_MATCH (LONG_AT ("%fx_off%" + 0x8)) WITH
+							"15" WHEN (BYTE_AT ("%fx_off%" + 0x12) == 90) AND (BYTE_AT ("%fx_off%" + 0x13) == 0) BEGIN // RACE=ELF
+								SET "racial_sleep_immunity_elf" = 1
+								PATCH_IF (VARIABLE_IS_SET "racial_sleep_immunity_half_elf") BEGIN
+									TEXT_SPRINT "sleep_type" "S"
+								END
+							END
+							"19" WHEN (BYTE_AT ("%fx_off%" + 0x12) == 30) AND (BYTE_AT ("%fx_off%" + 0x13) == 0) BEGIN // RACE=HALF_ELF
+								SET "racial_sleep_immunity_half_elf" = 1
+								PATCH_IF (VARIABLE_IS_SET "racial_sleep_immunity_elf") BEGIN
+									TEXT_SPRINT "sleep_type" "S"
+								END
+							END
+							"47" BEGIN // GENERAL=UNDEAD || RACE=GOLEM || RACE=MYCONID
+								TEXT_SPRINT "sleep_type" "N"
+							END
+							"55" BEGIN // GENERAL=UNDEAD || RACE=GOLEM
+								TEXT_SPRINT "sleep_type" "N"
+							END
+							"77" BEGIN // STAT(RESISTPOISON)>=100
+								TEXT_SPRINT "sleep_type" "N"
+							END
+							DEFAULT
+						END
+					END
+					"142" WHEN (LONG_AT ("%fx_off%" + 0x8) == "%STATDESC_NAUSEATED%") BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+								PATCH_IF (BYTE_AT ("%fx_off%" + 0xC) == "%sleep_fields_2%") BEGIN
+									PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+										PATCH_IF (LONG_AT ("%fx_off%" + 0xE) == "%sleep_fields_4%") BEGIN
+											PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+												PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+													PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+														PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+															PATCH_IF (LONG_AT ("%fx_off%" + 0x24) == "%sleep_fields_9%") BEGIN
+																PATCH_IF (SLONG_AT ("%fx_off%" + 0x28) == "%sleep_fields_10%") BEGIN
+																	TEXT_SPRINT "sleep_type" "N"
+																END
+															END
+														END
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+					"328" WHEN ((LONG_AT ("%fx_off%" + 0x8) == "%SPLSTATE_HOPELESSNESS%") AND (SLONG_AT ("%fx_off%" + 0x2C) == 1)) BEGIN
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+								PATCH_IF (BYTE_AT ("%fx_off%" + 0xC) == "%sleep_fields_2%") BEGIN
+									PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+										PATCH_IF (LONG_AT ("%fx_off%" + 0xE) == "%sleep_fields_4%") BEGIN
+											PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+												PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+													PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+														PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+															PATCH_IF (LONG_AT ("%fx_off%" + 0x24) == "%sleep_fields_9%") BEGIN
+																PATCH_IF (SLONG_AT ("%fx_off%" + 0x28) == "%sleep_fields_10%") BEGIN
+																	TEXT_SPRINT "sleep_type" "H"
+																END
+															END
+														END
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+					"235" BEGIN // Wing Buffet often lasts 1 second less and offers no save
+						PATCH_IF (BYTE_AT ("%fx_off%" + 0x2) == "%sleep_fields_0%") BEGIN
+							PATCH_IF (BYTE_AT ("%fx_off%" + 0x3) == "%sleep_fields_1%") BEGIN
+								PATCH_IF (BYTE_AT ("%fx_off%" + 0xC) == "%sleep_fields_2%") BEGIN
+									PATCH_IF (BYTE_AT ("%fx_off%" + 0xD) == "%sleep_fields_3%") BEGIN
+										PATCH_IF (LONG_AT ("%fx_off%" + 0xE) <= "%sleep_fields_4%") BEGIN
+											PATCH_IF (BYTE_AT ("%fx_off%" + 0x12) == "%sleep_fields_5%") BEGIN
+												PATCH_IF (BYTE_AT ("%fx_off%" + 0x13) == "%sleep_fields_6%") BEGIN
+													PATCH_IF (LONG_AT ("%fx_off%" + 0x1C) == "%sleep_fields_7%") BEGIN
+														PATCH_IF (LONG_AT ("%fx_off%" + 0x20) == "%sleep_fields_8%") BEGIN
+															TEXT_SPRINT "sleep_type" "W"
+														END
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+					"269" BEGIN // Shake Screen, most likely an earthquake/knockdown effect, effect is usually self-targeted, so no need to match fields
+						TEXT_SPRINT "sleep_type" "K"
+					END
+					DEFAULT
+				END
+			END
+	END
+END
+
+DEFINE_PATCH_FUNCTION "MAKE_SLEEP_EFFECT"
+INT_VAR
+	"op" = "-1"
+	"p1" = "-1"
+	"p2" = "-1"
+	"dnum" = 0
+	"dsize" = 0
+	"stype" = 0
+	"sbonus" = 0
+	"spec" = "-1"
+STR_VAR
+	"res" = ""
+RET
+	"filename"
+BEGIN
+	PATCH_SILENT
+	TEXT_SPRINT "filename" ""
+	SET "success" = 0
+	// Main
+	// Check if already present
+	INNER_ACTION BEGIN
+		COPY_EXISTING_REGEXP - "^GT%sleep_type%#[0-9a-z][0-9a-z][0-9a-z][0-9a-z]\.eff$" "override"
+			PATCH_IF !("%success%") BEGIN
+				PATCH_IF (SOURCE_SIZE >= 0x110) BEGIN
+					PATCH_IF (LONG_AT (0x10) == "%op%") BEGIN
+						PATCH_IF (SLONG_AT (0x1C) == "%p1%") BEGIN
+							PATCH_IF (LONG_AT (0x20) == "%p2%") BEGIN
+								READ_ASCII 0x30 "EFF_resref"
+								PATCH_IF ("%EFF_resref%" STRING_EQUAL_CASE "%res%") BEGIN
+									PATCH_IF (LONG_AT (0x38) == "%dnum%") BEGIN
+										PATCH_IF (LONG_AT (0x3C) == "%dsize%") BEGIN
+											PATCH_IF (LONG_AT (0x40) == "%stype%") BEGIN
+												PATCH_IF (SLONG_AT (0x44) == "%sbonus%") BEGIN
+													PATCH_IF (SLONG_AT (0x48) == "%spec%") BEGIN
+														SET "success" = 1
+														TEXT_SPRINT "filename" "%DEST_RES%"
+														// Log it for easier reference
+														LPF "LOG_SLEEP_EFFECT" END
+													END
+												END
+											END
+										END
+									END
+								END
+							END
+						END
+					END
+				END
+			END
+		BUT_ONLY_IF_IT_CHANGES IF_EXISTS
+	END
+	// Make it from scratch if not already present
+	PATCH_IF ("%filename%" STRING_EQUAL_CASE "") BEGIN
+		LPF "GENERATE_SLEEP_EFFECT_FILE_NAME"
+		RET
+			"filename"
+		END
+		// Log it for easier reference
+		LPF "LOG_SLEEP_EFFECT" END
+		// Make the actual EFF file
+		PATCH_MATCH "%sleep_type%" WITH
+			"S" BEGIN
+				TEXT_SPRINT "sleep_type" "SLEEP"
+			END
+			"U" BEGIN
+				TEXT_SPRINT "sleep_type" "UNCONS"
+			END
+			"N" BEGIN
+				TEXT_SPRINT "sleep_type" "NAUSEA"
+			END
+			"H" BEGIN
+				TEXT_SPRINT "sleep_type" "HOPEL"
+			END
+			"W" BEGIN
+				TEXT_SPRINT "sleep_type" "WINGB"
+			END
+			"K" BEGIN
+				TEXT_SPRINT "sleep_type" "KDOWN"
+			END
+			DEFAULT
+				PATCH_FAIL "~%DEST_FILE%~, MAKE_SLEEP_EFFECT: unknown sleep type ~%sleep_type%~"
+		END
+		PATCH_WITH_SCOPE BEGIN
+			DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+				"opcode" => "%op%"
+				"parameter1" => "%p1%"
+				"parameter2" => "%p2%"
+				"resource" => "%res%"
+				"dicenumber" => "%dnum%"
+				"dicesize" => "%dsize%"
+				"savetype" => "%stype%"
+				"savebonus" => "%sbonus%"
+				"special" => "%spec%"
+				"parent_resource" => "GT%sleep_type%"
+			END
+			INNER_ACTION BEGIN
+				LAF "MAKE_EFFECT"
+				STR_VAR
+					"edits" = "patch_data"
+					"filename"
+				END
+			END
+		END
+	END
+	PATCH_VERBOSE
+END
+
+DEFINE_DIMORPHIC_FUNCTION "GENERATE_SLEEP_EFFECT_FILE_NAME"
+RET
+	"filename"
+BEGIN
+	// Initialize
+	OUTER_SET "value" = 0
+	LAF ~BASE36~
+	INT_VAR
+		"value"
+	RET
+		~base36~
+	END
+	// Loop until you can't find one
+	OUTER_WHILE (FILE_EXISTS_IN_GAME "GT%sleep_type%#%base36%.EFF") BEGIN
+		OUTER_SET "value" += 1
+		LAF ~BASE36~
+		INT_VAR
+			"value"
+		RET
+			~base36~
+		END
+	END
+	OUTER_TEXT_SPRINT "filename" "GT%sleep_type%#%base36%"
+END
+
+DEFINE_PATCH_FUNCTION "LOG_SLEEP_EFFECT"
+BEGIN
+	// Initialize
+	PATCH_MATCH "%sleep_type%" WITH
+		"S" BEGIN
+			TEXT_SPRINT "sleep_file" "gt_sleep"
+		END
+		"U" BEGIN
+			TEXT_SPRINT "sleep_file" "gt_unconsciousness"
+		END
+		"N" BEGIN
+			TEXT_SPRINT "sleep_file" "gt_nausea"
+		END
+		"H" BEGIN
+			TEXT_SPRINT "sleep_file" "gt_hopelessness"
+		END
+		"W" BEGIN
+			TEXT_SPRINT "sleep_file" "gt_wing_buffet"
+		END
+		"K" BEGIN
+			TEXT_SPRINT "sleep_file" "gt_knockdown"
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, LOG_SLEEP_EFFECT: unknown sleep type ~%sleep_type%~"
+	END
+	// Main
+	INNER_ACTION BEGIN
+		WITH_SCOPE BEGIN
+			ACTION_IF !(FILE_EXISTS_IN_GAME "%sleep_file%.2da") BEGIN
+				COPY ~.../sleep_fix-inline/blank~ ~override/%sleep_file%.2da~
+					DELETE_BYTES 0x0 BUFFER_LENGTH
+					TEXT_SPRINT "initialize" "2DA V1.0%NL%*%NL%OPCODE PARAMETER1 PARAMETER2 RESOURCE DICENUMBER DICESIZE SAVETYPE SAVEBONUS SPECIAL APPLIED_BY%NL%"
+					INSERT_BYTES 0x0 (STRING_LENGTH "%initialize%")
+					WRITE_ASCIIE 0x0 "%initialize%"
+				BUT_ONLY_IF_IT_CHANGES
+			END
+		END
+		// Log it
+		WITH_SCOPE BEGIN
+			// 2DAs cannot have empty cells
+			ACTION_IF ("%res%" STRING_EQUAL_CASE "") BEGIN
+				OUTER_TEXT_SPRINT "res" "*"
+			END
+			// Main
+			COPY_EXISTING ~%sleep_file%.2da~ ~override~
+				SET "found" = 0
+				// read in the data
+				READ_2DA_ENTRIES_NOW ~read_apply_sleep_data~ 0
+				// go through the table – As usual, skip the first 3 rows (header rows)
+				FOR (~this_row~ = 3 ; "%this_row%" < "%read_apply_sleep_data%" ; ~this_row~ += 1) BEGIN
+					READ_2DA_ENTRY_FORMER ~read_apply_sleep_data~ "%this_row%" 0 ~2da_resref~
+					PATCH_IF ("%2da_resref%" STRING_EQUAL_CASE "%filename%") BEGIN
+						SET "found" = 1
+						READ_2DA_ENTRY_FORMER ~read_apply_sleep_data~ "%this_row%" 10 ~applied_by~
+						PATCH_IF ("%applied_by%" STRING_CONTAINS_REGEXP "%current_file%") BEGIN
+							SET_2DA_ENTRY ~%this_row%~ 10 0 ~%applied_by%,%current_file%~
+						END
+						SET "this_row" = "%read_apply_sleep_data%" + 1 // Kill FOR-loop
+					END
+				END
+				PATCH_IF !("%found%") BEGIN
+					TO_UPPER "filename"
+					INSERT_2DA_ROW ~%read_apply_sleep_data%~ 0 ~%filename% %op% %p1% %p2% %res% %dnum% %dsize% %stype% %sbonus% %spec% %current_file%~
+				END
+				// Formatting
+				PRETTY_PRINT_2DA
+			BUT_ONLY_IF_IT_CHANGES
+		END
+	END
+END

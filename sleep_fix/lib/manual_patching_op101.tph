@@ -1,0 +1,99 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// spells/items intended to block Sleep regardless of the recipient
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+<<<<<<<< .../sf-inline/sf_manual_patching.2da
+2DA V1.0
+0
+											SUBSPELL				SLEEP_TYPE															FILE_EXT			GAME
+/* =====SPL files===== */
+OHBBANNO									*						GTSLEEP,GTHOPEL,GTUNCONS,GTNAUSEA,GTWINGB							spl					*
+CLERIC_EXALTATION							*						GTSLEEP,GTHOPEL														spl					*
+CLERIC_BLOOD_RAGE							*						GTSLEEP,GTHOPEL														spl					*
+//WIZARD_MIND_BLANK							*						GTSLEEP,GTHOPEL														spl					*
+OHTYR1										*						GTSLEEP,GTHOPEL														spl					iwdee
+/* =====ITM files===== */
+HELMDEF										*						GTSLEEP																itm					*
+
+>>>>>>>>
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Process a table of SF instructions
+//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ACTION_FUNCTION "sf_process_table_op101"
+STR_VAR
+	"table" = ""
+BEGIN
+	COPY - "%table%" "override"
+		// remove commented rows
+		REPLACE_TEXTUALLY CASE_INSENSITIVE EVALUATE_REGEXP "/\*.+\*/" ""
+		REPLACE_TEXTUALLY CASE_INSENSITIVE EVALUATE_REGEXP "^//.+$" ""
+		// read in the data
+		COUNT_2DA_COLS ~colcount~
+		READ_2DA_ENTRIES_NOW ~sf_table_data~ ~%colcount%~
+		// go through the table
+		FOR (~this_row~ = 0 ; "%this_row%" < "%sf_table_data%" ; ~this_row~ += 1) BEGIN
+			READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 4 ~game_variant~
+			PATCH_IF (("%game_variant%" STRING_CONTAINS_REGEXP ",") == 0) BEGIN
+				INNER_PATCH_SAVE "game_variant" "%game_variant%" BEGIN
+					REPLACE_TEXTUALLY CASE_INSENSITIVE EXACT_MATCH "," " "
+				END
+			END
+			PATCH_IF ("%game_variant%" STRING_EQUAL_CASE "*") OR (GAME_IS ~%game_variant%~) BEGIN
+				READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 0 ~resref~
+				READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 1 ~subspell~
+				READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 3 ~file_ext~
+				// adjust ~%resource%~ in case of subspell
+				PATCH_IF (IDS_OF_SYMBOL ("SPELL" "%resref%") != "-1") BEGIN
+					PATCH_IF ("%subspell%" STRING_COMPARE_CASE "*") BEGIN
+						TEXT_SPRINT "resref" "%%resref%%%subspell%"
+					END ELSE BEGIN
+						TEXT_SPRINT "resref" "%%resref%%"
+					END
+				END
+				// Make sure the current file does exist
+				PATCH_IF (FILE_EXISTS_IN_GAME ~%resref%.%file_ext%~) BEGIN
+					READ_2DA_ENTRY_FORMER ~sf_table_data~ "%this_row%" 2 ~identifier~
+					// ITM vs. SPL
+					PATCH_MATCH "%file_ext%" WITH
+						"itm" BEGIN
+							TEXT_SPRINT "function" "EDIT_ITEM"
+						END
+						"spl" BEGIN
+							TEXT_SPRINT "function" "EDIT_SPELL"
+						END
+						DEFAULT
+							PATCH_FAIL "Unexpected type of file"
+					END
+					// Apply the actual patches ...
+					PATCH_WITH_SCOPE BEGIN
+						PATCH_IF (("%identifier%" STRING_CONTAINS_REGEXP ",") == 0) BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"delete_effect" => "match_opcode=>318, match_parameter1=>0, match_parameter2=>0, match_resource=>{%identifier%}"	// Protection from resource => EA >= ANYONE
+								"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>0, parameter2=>0, special=>0, resource=>{%identifier%}"	// Protection from resource => EA >= ANYONE
+							END
+						END ELSE BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"delete_effect" => "match_opcode=>318, match_parameter1=>0, match_parameter2=>0, match_resource=>%identifier%"	// Protection from resource => EA >= ANYONE
+								"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>0, parameter2=>0, special=>0, resource=>%identifier%"	// Protection from resource => EA >= ANYONE
+							END
+						END
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"delete_effect2" => "match_opcode=>101, match_parameter2=>39"	// Immunity to effect => Sleep
+						END
+						INNER_ACTION BEGIN
+							LAF "%function%"
+							STR_VAR
+								"edits" = "patch_data"
+								"file_list" = "%resref%"
+							END
+						END
+					END
+				END
+			END
+		END
+	BUT_ONLY_IF_IT_CHANGES
+END

@@ -1,0 +1,419 @@
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	delete_effect
+//	– Delete an existing effect based on the specified parameters
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "delete_effect"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"ITM" "SPL" "CRE" BEGIN
+			PATCH_MATCH "%arguments%" WITH
+				"^default$"
+				"^[^ ,{}%NL%%TAB%]+=>[^%NL%%TAB%]+\(, [^ ,{}%NL%%TAB%]+=>[^%NL%%TAB%]+\)*$" BEGIN
+					// Set default values
+					// INT_VAR
+					// defines what we're going to check
+					SET "___#check_globals" = 1
+					SET "___#check_headers" = 1
+					SET "___#header" = "-1"
+					SET "___#header_type" = "-1"
+					SET "___#multi_match" = 999
+					SET "___#verbose" = 0
+					SET "___#silent" = 1
+					// variables for finding the effect to match
+					SET "___#match_opcode" = "-1"
+					SET "___#match_target" = "-1"
+					SET "___#match_power" = "-1"
+					TEXT_SPRINT "___#match_parameter1" "SAME"
+					TEXT_SPRINT "___#match_parameter2" "SAME"
+					SET "___#match_timing" = "-1"
+					SET "___#match_resist_dispel" = "-1"
+					SET "___#match_duration" = "-1"
+					SET "___#match_duration_high" = "-1"
+					SET "___#match_probability1" = "-1"
+					SET "___#match_probability2" = "-1"
+					SET "___#match_dicenumber" = "-1"
+					SET "___#match_dicesize" = "-1"
+					SET "___#match_savetype" = "-1"
+					TEXT_SPRINT "___#match_special" "SAME"
+					SET "___#match_savebonus" = "-11"
+					// STR_VAR
+					TEXT_SPRINT "___#match_resource" "SAME"
+					// Extra condition(s)
+					TEXT_SPRINT "___#when" "1"
+					// Overwrite default values (if needed!)
+					PATCH_IF ("%arguments%" STRING_COMPARE_CASE "default") BEGIN
+						WHILE ("%arguments%" STRING_COMPARE_CASE "") BEGIN
+							LPF "RETURN_FIRST_ENTRY"
+							STR_VAR
+								"list" = "%arguments%"
+								"separator" = ", "
+							RET
+								"arguments" = "remaining_list"
+								"key_value" = "entry"	// Ex.: savetype=>BIT0|BIT24
+							END
+							LPF "RETURN_KEY_VALUE"
+							STR_VAR
+								"list" = "%key_value%"
+							RET
+								"key"
+								"value"
+							END
+							PATCH_MATCH "%key%" WITH
+								// defines what we're going to check
+								"check_globals"
+								"check_headers"
+								"header"
+								"header_type"
+								"multi_match"
+								"verbose"
+								"silent"
+								// variables for finding the effect to match
+								"match_opcode"
+								"match_target"
+								"match_timing"
+								"match_parameter[1-2]"
+								"match_power"
+								"match_resist_dispel"
+								"match_duration\(_high\)?"
+								"match_probability[1-2]"
+								"match_resource"
+								"match_dicenumber"
+								"match_dicesize"
+								"match_savetype"
+								"match_savebonus"
+								"match_special"
+								"when" BEGIN
+									TEXT_SPRINT "___#%key%" "%value%"
+								END
+								DEFAULT
+									PATCH_FAIL "~%DEST_FILE%~, delete_effect: unknown variable ~%key%~"
+							END
+						END
+					END
+					// Sort out how many effects need to be deleted
+					LAUNCH_PATCH_FUNCTION "GET_VARIABLE_LIST"
+					RET
+						"___#number_to_delete" = "counter"
+					RET_ARRAY
+						"___#match_parameter1_list"
+						"___#match_parameter2_list"
+						"___#match_resource_list"
+					END
+					FOR ("i" = 1; "%i%" <= "%___#number_to_delete%"; "i" += 1) BEGIN
+						PATCH_FOR_EACH "loop_var" IN
+							"___#match_parameter1"
+							"___#match_parameter2"
+							"___#match_resource"
+						BEGIN
+							PATCH_IF (VARIABLE_IS_SET $"%loop_var%_list"("%i%")) BEGIN
+								TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("%i%")
+							END ELSE BEGIN
+								TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("1")
+							END
+						END
+						// Main
+						LPF "EVALUATE_WHEN_CLAUSE"
+						STR_VAR
+							"condition_value" = "%___#when%"
+						RET
+							"success"
+						END
+						PATCH_IF "%success%" BEGIN
+							LPF "DELETE_EFFECT_EX" END
+						END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "~%DEST_FILE%~, delete_effect: string ~%arguments%~ appears to be malformed. Please stick to the following template: ~match_opcode=>232, match_parameter2=>15~ or ~default~"
+			END
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, delete_effect: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	clone_effect
+//	– Clone an existing effect based on the specified parameters
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "clone_effect"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"ITM" "SPL" "CRE" BEGIN
+			PATCH_MATCH "%arguments%" WITH
+				"^default$"
+				"^[^ ,{}%NL%%TAB%]+=>[^%NL%%TAB%]+\(, [^ ,{}%NL%%TAB%]+=>[^%NL%%TAB%]+\)*$" BEGIN
+					// Set default values
+					// INT_VAR
+					// defines what we're going to check
+					SET "___#check_globals" = 1
+					SET "___#check_headers" = 1
+					SET "___#header" = "-1"
+					SET "___#header_type" = "-1"
+					SET "___#multi_match" = 1
+					SET "___#verbose" = 0
+					SET "___#silent" = 1
+					// variables for finding the effect to match
+					SET "___#match_opcode" = "-1"
+					SET "___#match_target" = "-1"
+					SET "___#match_power" = "-1"
+					TEXT_SPRINT "___#match_parameter1" "SAME"
+					TEXT_SPRINT "___#match_parameter2" "SAME"
+					SET "___#match_timing" = "-1"
+					SET "___#match_resist_dispel" = "-1"
+					SET "___#match_duration" = "-1"
+					//"match_duration_high"
+					SET "___#match_probability1" = "-1"
+					SET "___#match_probability2" = "-1"
+					SET "___#match_dicenumber" = "-1"
+					SET "___#match_dicesize" = "-1"
+					SET "___#match_savetype" = "-1"
+					TEXT_SPRINT "___#match_special" "SAME"
+					SET "___#match_savebonus" = "-11"
+					// variables for the new effect
+					SET "___#opcode" = "-1"
+					SET "___#power" = "-1"
+					SET "___#target" = "-1"
+					SET "___#timing" = "-1"
+					SET "___#resist_dispel" = "-1"
+					SET "___#probability1" = "-1"
+					SET "___#probability2" = "-1"
+					SET "___#dicenumber" = "-1"
+					SET "___#dicesize" = "-1"
+					SET "___#savebonus" = "-11"
+					// STR_VAR
+					TEXT_SPRINT "___#parameter1" "SAME"
+					TEXT_SPRINT "___#parameter2" "SAME"
+					TEXT_SPRINT "___#duration" "SAME"
+					TEXT_SPRINT "___#savetype" "SAME"
+					TEXT_SPRINT "___#special" "SAME"
+					TEXT_SPRINT "___#match_resource" "SAME"
+					TEXT_SPRINT "___#resource" "SAME"
+					TEXT_SPRINT "___#insert" "above"
+					// Overwrite default values (if needed!)
+					WHILE ("%arguments%" STRING_COMPARE_CASE "") BEGIN
+						LPF "RETURN_FIRST_ENTRY"
+						STR_VAR
+							"list" = "%arguments%"
+							"separator" = ", "
+						RET
+							"arguments" = "remaining_list"
+							"key_value" = "entry"	// Ex.: savetype=>BIT0|BIT24
+						END
+						LPF "RETURN_KEY_VALUE"
+						STR_VAR
+							"list" = "%key_value%"
+						RET
+							"key"
+							"value"
+						END
+						PATCH_MATCH "%key%" WITH
+							// defines what we're going to check
+							"check_globals"
+							"check_headers"
+							"header"
+							"header_type"
+							"multi_match"
+							"verbose"
+							"silent"
+							// variables for finding the effect to match / variables for the new effect
+							"\(match_\)?opcode"
+							"\(match_\)?target"
+							"\(match_\)?timing"
+							"\(match_\)?parameter[1-2]"
+							"\(match_\)?power"
+							"\(match_\)?resist_dispel"
+							"\(match_\)?duration"
+							"\(match_\)?probability[1-2]"
+							"\(match_\)?resource"
+							"\(match_\)?dicenumber"
+							"\(match_\)?dicesize"
+							"\(match_\)?savetype"
+							"\(match_\)?savebonus"
+							"\(match_\)?special"
+							// auxiliary variables
+							"insert" BEGIN
+								TEXT_SPRINT "___#%key%" "%value%"
+							END
+							DEFAULT
+								PATCH_FAIL "~%DEST_FILE%~, clone_effect: unknown variable ~%key%~"
+						END
+					END
+					// Sort out how many effects need to be added
+					LAUNCH_PATCH_FUNCTION "GET_VARIABLE_LIST"
+					RET
+						"___#number_to_clone" = "counter"
+					RET_ARRAY
+						"___#resource_list"
+					END
+					FOR ("i" = 1; "%i%" <= "%___#number_to_clone%"; "i" += 1) BEGIN
+						PATCH_FOR_EACH "loop_var" IN
+							"___#resource"
+						BEGIN
+							PATCH_IF (VARIABLE_IS_SET $"%loop_var%_list"("%i%")) BEGIN
+								TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("%i%")
+							END ELSE BEGIN
+								TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("1")
+							END
+						END
+						// Main
+						LPF "CLONE_EFFECT_EX" END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "~%DEST_FILE%~, clone_effect: string ~%arguments%~ appears to be malformed. Please stick to the following template: ~match_opcode=>232, parameter2=>15, special=>BIT6|BIT7~ or ~default~"
+			END
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, clone_effect: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	alter_effect
+//	– Alter an existing effect based on the specified parameters
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "alter_effect"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"CRE" "SPL" "ITM" BEGIN
+			PATCH_MATCH "%arguments%" WITH
+				"^default$"
+				"^[^ ,{}%NL%%TAB%]+=>[^%NL%%TAB%]+\(, [^ ,{}%NL%%TAB%]+=>[^%NL%%TAB%]+\)*$" BEGIN
+					// Set default values
+					// INT_VAR
+					// defines what we're going to check
+					SET "___#check_globals" = 1
+					SET "___#check_headers" = 1
+					SET "___#header" = "-1"
+					SET "___#header_type" = "-1"
+					SET "___#multi_match" = 999
+					SET "___#verbose" = 0
+					SET "___#silent" = 1
+					// variables for finding the effect to match
+					SET "___#match_opcode" = "-1"
+					SET "___#match_target" = "-1"
+					SET "___#match_power" = "-1"
+					TEXT_SPRINT "___#match_parameter1" "SAME"
+					TEXT_SPRINT "___#match_parameter2" "SAME"
+					SET "___#match_timing" = "-1"
+					SET "___#match_resist_dispel" = "-1"
+					SET "___#match_duration" = "-1"
+					//"match_duration_high"
+					TEXT_SPRINT "___#match_probability1" "SAME"
+					TEXT_SPRINT "___#match_probability2" "SAME"
+					TEXT_SPRINT "___#match_dicenumber" "SAME"
+					TEXT_SPRINT "___#match_dicesize" "SAME"
+					TEXT_SPRINT "___#match_savetype" "SAME"
+					TEXT_SPRINT "___#match_savebonus" "SAME"
+					TEXT_SPRINT "___#match_special" "SAME"
+					TEXT_SPRINT "___#match_resource" "SAME"
+					// variables for the new effect
+					SET "___#opcode" = "-1"
+					SET "___#power" = "-1"
+					SET "___#target" = "-1"
+					SET "___#timing" = "-1"
+					SET "___#resist_dispel" = "-1"
+					SET "___#probability1" = "-1"
+					SET "___#probability2" = "-1"
+					SET "___#dicenumber" = "-1"
+					SET "___#dicesize" = "-1"
+					SET "___#savebonus" = "-11"
+					// STR_VAR
+					TEXT_SPRINT "___#parameter1" "SAME"
+					TEXT_SPRINT "___#parameter2" "SAME"
+					TEXT_SPRINT "___#duration" "SAME"
+					TEXT_SPRINT "___#savetype" "SAME"
+					TEXT_SPRINT "___#special" "SAME"
+					TEXT_SPRINT "___#resource" "SAME"
+					// Overwrite default values (if needed!)
+					WHILE ("%arguments%" STRING_COMPARE_CASE "") BEGIN
+						LPF "RETURN_FIRST_ENTRY"
+						STR_VAR
+							"list" = "%arguments%"
+							"separator" = ", "
+						RET
+							"arguments" = "remaining_list"
+							"key_value" = "entry"	// Ex.: savetype=>BIT0|BIT24
+						END
+						LPF "RETURN_KEY_VALUE"
+						STR_VAR
+							"list" = "%key_value%"
+						RET
+							"key"
+							"value"
+						END
+						PATCH_MATCH "%key%" WITH
+							// defines what we're going to check
+							"check_globals"
+							"check_headers"
+							"header"
+							"header_type"
+							"multi_match"
+							"verbose"
+							"silent"
+							// variables for finding the effect to match / variables for the new effect
+							"\(match_\)?opcode"
+							"\(match_\)?target"
+							"\(match_\)?timing"
+							"\(match_\)?parameter[1-2]"
+							"\(match_\)?power"
+							"\(match_\)?resist_dispel"
+							"\(match_\)?duration"
+							"\(match_\)?probability[1-2]"
+							"\(match_\)?resource"
+							"\(match_\)?dicenumber"
+							"\(match_\)?dicesize"
+							"\(match_\)?savetype"
+							"\(match_\)?savebonus"
+							"\(match_\)?special" BEGIN
+								TEXT_SPRINT "___#%key%" "%value%"
+							END
+							DEFAULT
+								PATCH_FAIL "~%DEST_FILE%~, alter_effect: unknown variable ~%key%~"
+						END
+					END
+					// Sort out how many effects need to be added
+					LAUNCH_PATCH_FUNCTION "GET_VARIABLE_LIST"
+					RET
+						"___#number_to_alter" = "counter"
+					RET_ARRAY
+						"___#match_opcode_list"
+					END
+					FOR ("i" = 1; "%i%" <= "%___#number_to_alter%"; "i" += 1) BEGIN
+						PATCH_FOR_EACH "loop_var" IN
+							"___#match_opcode"
+						BEGIN
+							PATCH_IF (VARIABLE_IS_SET $"%loop_var%_list"("%i%")) BEGIN
+								TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("%i%")
+							END ELSE BEGIN
+								TEXT_SPRINT "%loop_var%" $"%loop_var%_list"("1")
+							END
+						END
+						// Main
+						LPF "ALTER_EFFECT_EX" END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "~%DEST_FILE%~, alter_effect: string ~%arguments%~ appears to be malformed. Please stick to the following template: ~match_opcode=>232, parameter2=>15, special=>BIT6|BIT7~ or ~default~"
+			END
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, alter_effect: unexpected type of file"
+	END
+END

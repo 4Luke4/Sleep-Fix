@@ -1,0 +1,37 @@
+// Let's set a variable for each valid entry in BUTTON.IDS
+// You can now write ~%BUTTON_DIALOG%~ instead of 7
+
+DEFINE_ACTION_MACRO "BUTTON_IDS" BEGIN
+	/*LOCAL_SET "read_button" = 0
+	LOCAL_SET "i" = 0
+	LOCAL_SPRINT "identifier" ""
+
+	COPY_EXISTING - "BUTTON.IDS" "override"
+		READ_2DA_ENTRIES_NOW "read_button" 0
+		FOR ("i" = 1; "%i%" < "%read_button%"; "i" += 1) BEGIN	// Skip 1st row ~IDS V1.0~
+			READ_2DA_ENTRY_FORMER "read_button" "%i%" 1 "identifier"
+			TO_UPPER "identifier"
+			SET "%identifier%" = IDS_OF_SYMBOL (~BUTTON~ ~%identifier%~)
+		END
+	BUT_ONLY_IF_IT_CHANGES*/
+
+	// Let's do it in a pretty weird way because of some inconsistencies
+	// For instance, both SCREEN_INVENTORY and BUTTON_FINDTRAPS point to 14 (SCREEN_INVENTORY should be 15)
+	// Moreover, BUTTON_BARDSONG is missing
+	OUTER_SET "BUTTON_STEALTH" = 0
+	OUTER_SET "BUTTON_THIEVING" = 1
+	OUTER_SET "BUTTON_CASTSPELL" = 2
+	OUTER_SET "BUTTON_QUICKSPELL0" = 3
+	OUTER_SET "BUTTON_QUICKSPELL1" = 4
+	OUTER_SET "BUTTON_QUICKSPELL2" = 5
+	OUTER_SET "BUTTON_TURNUNDEAD" = 6
+	OUTER_SET "BUTTON_DIALOG" = 7
+	OUTER_SET "BUTTON_USEITEM" = 8
+	OUTER_SET "BUTTON_QUICKITEM1" = 9
+	OUTER_SET "BUTTON_BARDSONG" = 10
+	OUTER_SET "BUTTON_QUICKITEM2" = 11
+	OUTER_SET "BUTTON_QUICKITEM3" = 12
+	OUTER_SET "BUTTON_INNATEBUTTON" = 13
+	OUTER_SET "BUTTON_BARDSONG" = 14
+	OUTER_SET "SCREEN_INVENTORY" = 15
+END

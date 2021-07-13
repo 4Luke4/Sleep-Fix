@@ -1,0 +1,82 @@
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Patch "creature skins"
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ACTION_FUNCTION "sf_patch_creature_items"
+BEGIN
+	SILENT
+	// Main
+	COPY_EXISTING - "gt_creature_skins.2da" "override"
+		READ_2DA_ENTRIES_NOW "read_skin_items" 0
+		FOR ("i" = 3 ; "%i%" < "%read_skin_items%" ; "i" += 1) BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				READ_2DA_ENTRY_FORMER "read_skin_items" "%i%" 0 "2da_item"
+				READ_2DA_ENTRY_FORMER "read_skin_items" "%i%" 1 "2da_general"
+				READ_2DA_ENTRY_FORMER "read_skin_items" "%i%" 2 "2da_race"
+				READ_2DA_ENTRY_FORMER "read_skin_items" "%i%" 3 "2da_class"
+				// Patch the item
+				INNER_ACTION BEGIN
+					COPY_EXISTING "%2da_item%.itm" "override"
+						WHILE ("%2da_general%" STRING_COMPARE_CASE "") BEGIN
+							LPF "RETURN_FIRST_ENTRY"
+							STR_VAR
+								"list" = "%2da_general%"
+								"separator" = ","
+							RET
+								"2da_general" = "remaining_list"
+								"entry"
+							END
+							LPF "GENERAL_RACE_CLASS_FILTER"
+							INT_VAR
+								"general" = "%entry%"
+							STR_VAR
+								"file_ext" = "itm"
+							END
+						END
+						WHILE ("%2da_race%" STRING_COMPARE_CASE "") BEGIN
+							LPF "RETURN_FIRST_ENTRY"
+							STR_VAR
+								"list" = "%2da_race%"
+								"separator" = ","
+							RET
+								"2da_race" = "remaining_list"
+								"entry"
+							END
+							LPF "GENERAL_RACE_CLASS_FILTER"
+							INT_VAR
+								"race" = "%entry%"
+							STR_VAR
+								"file_ext" = "itm"
+							END
+						END
+						WHILE ("%2da_class%" STRING_COMPARE_CASE "") BEGIN
+							LPF "RETURN_FIRST_ENTRY"
+							STR_VAR
+								"list" = "%2da_class%"
+								"separator" = ","
+							RET
+								"2da_class" = "remaining_list"
+								"entry"
+							END
+							LPF "GENERAL_RACE_CLASS_FILTER"
+							INT_VAR
+								"class" = "%entry%"
+							STR_VAR
+								"file_ext" = "itm"
+							END
+						END
+						// Delete op101 (p2=39)
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"delete_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39" // Immunity to effect => Sleep
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					BUT_ONLY_IF_IT_CHANGES
+				END
+			END
+		END
+	BUT_ONLY_IF_IT_CHANGES
+	VERBOSE
+END

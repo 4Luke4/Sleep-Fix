@@ -1,0 +1,163 @@
+DEFINE_ACTION_FUNCTION "sf_poly_weapons"
+BEGIN
+	SILENT
+	// BG2EE polymorph effects are located in the ITM
+	WITH_SCOPE BEGIN
+		COPY_EXISTING_REGEXP "^.+\.itm$" "override"
+			PATCH_IF (SOURCE_SIZE > 0x71) BEGIN
+				SET "poly" = 0
+				SET "patch" = 0
+				SET "cannot_talk" = 0
+				// Main
+				GET_OFFSET_ARRAY "fx_array" ITM_V10_GEN_EFFECTS
+				PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+					PATCH_MATCH SHORT_AT ("%fx_off%") WITH
+						"135" BEGIN
+							READ_ASCII ("%fx_off%" + 0x14) "cre_res"
+							PATCH_IF (FILE_EXISTS_IN_GAME "%cre_res%.cre") BEGIN
+								SET "poly" = 1
+							END
+						END
+						"101" WHEN (LONG_AT ("%fx_off%" + 0x8) == 39) BEGIN
+							SET "patch" = 1
+						END
+						"144" WHEN (LONG_AT ("%fx_off%" + 0x8) == "%BUTTON_DIALOG%") BEGIN
+							// This is to exclude "SLAYER[2-4]"
+							SET "cannot_talk" = 1
+						END
+						DEFAULT
+					END
+				END
+				// If the poly creature does exist and it cannot talk...
+				PATCH_IF ("%cannot_talk%" AND "%poly%") BEGIN
+					// If the poly weapon does grant immunity to Sleep, delete op101 (p2=39)
+					PATCH_IF "%patch%" BEGIN
+						PATCH_WITH_SCOPE BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"delete_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39" // Immunity to effect => Sleep
+							END
+							LPF "APPLY_PATCHES"
+							STR_VAR
+								"edits" = "patch_data"
+							END
+						END
+					END
+					PATCH_WITH_SCOPE BEGIN
+						INNER_PATCH_FILE "%cre_res%.cre" BEGIN
+							READ_LONG 0x28 "CRE_animation"
+							READ_BYTE 0x271 "CRE_general"
+							READ_BYTE 0x272 "CRE_race"
+							READ_BYTE 0x273 "CRE_class"
+						END
+						LPF "GENERAL_RACE_CLASS_FILTER"
+						INT_VAR
+							"general" = "%CRE_general%"
+							"race" = "%CRE_race%"
+							"class" = "%CRE_class%"
+							"poly_item" = 1
+						STR_VAR
+							"file_ext" = "itm"
+						END
+						// Handle special cases
+						LPF "GENERAL_RACE_CLASS_FILTER_SPECIAL"
+						INT_VAR
+							"animation" = "%CRE_animation%"
+							"race" = "%CRE_race%"
+							"class" = "%CRE_class%"
+						END
+					END
+				END
+			END
+		BUT_ONLY_IF_IT_CHANGES
+	END
+	// BGEE/SOD polymorph effects are located in the SPL, not ITM
+	WITH_SCOPE BEGIN
+		COPY_EXISTING_REGEXP - "^.+\.spl$" "override"
+			PATCH_IF (SOURCE_SIZE > 0x71) BEGIN
+				SET "poly" = 0
+				SET "item" = 0
+				SET "cannot_talk" = 0
+				// Main
+				GET_OFFSET_ARRAY "ab_array" SPL_V10_HEADERS
+				PHP_EACH "ab_array" AS "_" => "ab_off" BEGIN
+					GET_OFFSET_ARRAY2 "fx_array" "%ab_off%" SPL_V10_HEAD_EFFECTS
+					PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+						PATCH_MATCH SHORT_AT ("%fx_off%") WITH
+							"135" BEGIN
+								READ_ASCII ("%fx_off%" + 0x14) "cre_res"
+								PATCH_IF (FILE_EXISTS_IN_GAME "%cre_res%.cre") BEGIN
+									SET "poly" = 1
+								END
+							END
+							"111" BEGIN
+								READ_ASCII ("%fx_off%" + 0x14) "itm_res"
+								PATCH_IF (FILE_EXISTS_IN_GAME "%itm_res%.itm") BEGIN
+									SET "item" = 1
+								END
+							END
+							"144" WHEN (LONG_AT ("%fx_off%" + 0x8) == "%BUTTON_DIALOG%") BEGIN
+								SET "cannot_talk" = 1
+							END
+							DEFAULT
+						END
+					END
+				END
+				// If the poly creature does exist, cannot talk, and the poly weapon does exist...
+				PATCH_IF ("%item%" AND "%poly%" AND "%cannot_talk%") BEGIN
+					INNER_ACTION BEGIN
+						COPY_EXISTING "%itm_res%.itm" "override"
+							SET "patch" = 0
+							GET_OFFSET_ARRAY "fx_array" ITM_V10_GEN_EFFECTS
+							PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+								PATCH_MATCH SHORT_AT ("%fx_off%") WITH
+									"101" WHEN (LONG_AT ("%fx_off%" + 0x8) == 39) BEGIN
+										SET "patch" = 1
+									END
+									DEFAULT
+								END
+							END
+							// If the poly weapon does grant immunity to Sleep...
+							PATCH_IF "%patch%" BEGIN
+								// Delete op101 (p2=39)
+								PATCH_WITH_SCOPE BEGIN
+									DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+										"delete_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39" // Immunity to effect => Sleep
+									END
+									LPF "APPLY_PATCHES"
+									STR_VAR
+										"edits" = "patch_data"
+									END
+								END
+							END
+							PATCH_WITH_SCOPE BEGIN
+								INNER_PATCH_FILE "%cre_res%.cre" BEGIN
+									READ_LONG 0x28 "CRE_animation"
+									READ_BYTE 0x271 "CRE_general"
+									READ_BYTE 0x272 "CRE_race"
+									READ_BYTE 0x273 "CRE_class"
+								END
+								LPF "GENERAL_RACE_CLASS_FILTER"
+								INT_VAR
+									"general" = "%CRE_general%"
+									"race" = "%CRE_race%"
+									"class" = "%CRE_class%"
+									"poly_item" = 1
+								STR_VAR
+									"file_ext" = "itm"
+								END
+								// Handle special cases
+								LPF "GENERAL_RACE_CLASS_FILTER_SPECIAL"
+								INT_VAR
+									"animation" = "%CRE_animation%"
+									"race" = "%CRE_race%"
+									"class" = "%CRE_class%"
+								END
+							END
+						BUT_ONLY_IF_IT_CHANGES
+					END
+				END
+			END
+		BUT_ONLY_IF_IT_CHANGES
+	END
+	VERBOSE
+END

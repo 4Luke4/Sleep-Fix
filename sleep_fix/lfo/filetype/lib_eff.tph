@@ -1,0 +1,324 @@
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	Create the specified EFF files from scratch
+//	Ex.: ~EXAMPLE EXAMPLE2~ // white-space separated
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_ACTION_FUNCTION "MAKE_EFFECT"
+STR_VAR
+	"edits" = ""
+	"filename" = ""
+BEGIN
+	ACTION_TO_UPPER "filename"
+	LAUNCH_ACTION_FUNCTION "MAKE_TEMPLATE"
+	STR_VAR
+		"edits"
+		"filename"
+		"file_ext" = "EFF"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Creates a new EFF file
+////////////////////////////////////////////////////////////
+
+DEFINE_ACTION_FUNCTION "CREATE_EFF_FILE"
+STR_VAR
+	"filename" = ""
+BEGIN
+	// Sanity check
+	ACTION_IF (STRING_LENGTH "%filename%" <= 0) OR (STRING_LENGTH "%filename%" > 8) BEGIN
+		FAIL "CREATE_EFF_FILE: the length of the string ~%filename%~ must belong to the interval (0,8]"
+	END
+	// Main
+	ACTION_TO_LOWER "filename"
+	COPY ".../sleep_fix-inline/blank" "override/%filename%.eff"
+		DELETE_BYTES 0x0 BUFFER_LENGTH
+		INSERT_BYTES 0x0 0x110	// 0d272
+		// Signature, Version
+		WRITE_ASCII 0x0 "EFF "
+		WRITE_ASCII 0x4 "V2.0"
+		// Signature 2, Version 2
+		WRITE_ASCII 0x8 "EFF "
+		WRITE_ASCII 0xC "V2.0"
+
+		// Set default values
+		WRITE_SHORT 0x2C 100	// Probability1
+		// Caster locations
+		FOR ("i" = 0x80; "%i%" <= 0x8C; "i" += 0x4) BEGIN
+			WRITE_LONG "%i%" "-1"
+		END
+		// Source item slot
+		WRITE_LONG 0xA4 "-1"
+	BUT_ONLY_IF_IT_CHANGES
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Opcode (offset 0x10)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_opcode"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		PATCH_IF (IS_AN_INT "arguments") BEGIN
+			PATCH_IF ("%arguments%" >= 0 AND "%arguments%" <= 367) BEGIN
+				WRITE_LONG 0x10 "%arguments%"
+			END ELSE BEGIN
+				PATCH_FAIL "~%DEST_FILE%~: patch function EFF_opcode takes integer values between 0 and 367 (you provided ~%arguments%~)"
+			END
+		END ELSE BEGIN
+			PATCH_FAIL "~%DEST_FILE%~: patch function EFF_opcode takes integer values between 0 and 367 (you provided ~%arguments%~)"
+		END
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_opcode: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Parameter1 (offset 0x1C)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_parameter1"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		LAUNCH_PATCH_FUNCTION "EVALUATE_EXPRESSION"
+		INT_VAR
+			"effect_number" = LONG_AT (0x10)
+		STR_VAR
+			"expression" = "%arguments%"
+		RET
+			"arguments" = "value"
+		END
+		WRITE_LONG 0x1C "%arguments%"
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_parameter1: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Parameter2 (offset 0x20)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_parameter2"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		LAUNCH_PATCH_FUNCTION "EVALUATE_EXPRESSION"
+		INT_VAR
+			"effect_number" = LONG_AT (0x10)
+		STR_VAR
+			"expression" = "%arguments%"
+		RET
+			"arguments" = "value"
+		END
+		WRITE_LONG 0x20 "%arguments%"
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_parameter2: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Resource (offset 0x30)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_resource"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		INNER_PATCH "%arguments%" BEGIN
+			PATCH_IF (BUFFER_LENGTH > 8) BEGIN
+				PATCH_FAIL "~%DEST_FILE%~, EFF_resource: string ~%arguments%~ cannot be longer than 8 characters"
+			END
+		END
+		WRITE_ASCIIE 0x30 "%arguments%" #8
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_resource: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Dicenumber (offset 0x38)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_dicenumber"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		PATCH_IF (IS_AN_INT "arguments") BEGIN
+			WRITE_LONG 0x38 "%arguments%"
+		END ELSE BEGIN
+			PATCH_FAIL "~%DEST_FILE%~: patch function EFF_dicenumber takes integer values (you provided ~%arguments%~)"
+		END
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_dicenumber: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Dicesize (offset 0x3C)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_dicesize"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		PATCH_IF (IS_AN_INT "arguments") BEGIN
+			WRITE_LONG 0x3C "%arguments%"
+		END ELSE BEGIN
+			PATCH_FAIL "~%DEST_FILE%~: patch function EFF_dicesize takes integer values (you provided ~%arguments%~)"
+		END
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_dicesize: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Save type (offset 0x40)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_savetype"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		LAUNCH_PATCH_FUNCTION "EVALUATE_EFFECT_SAVETYPE"
+		STR_VAR
+			"input" = "%arguments%"
+		RET
+			"arguments" = "output"
+		END
+		WRITE_LONG 0x40 "%arguments%"
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_savetype: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Save bonus (offset 0x44)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_savebonus"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		PATCH_IF (IS_AN_INT "arguments") BEGIN
+			WRITE_LONG 0x44 "%arguments%"
+		END ELSE BEGIN
+			PATCH_FAIL "~%DEST_FILE%~: patch function EFF_savebonus takes integer values (you provided ~%arguments%~)"
+		END
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_savebonus: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Special (offset 0x48)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_special"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		LAUNCH_PATCH_FUNCTION "EVALUATE_EXPRESSION"
+		INT_VAR
+			"effect_number" = LONG_AT (0x10)
+		STR_VAR
+			"expression" = "%arguments%"
+		RET
+			"arguments" = "value"
+		END
+		WRITE_LONG 0x48 "%arguments%"
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_special: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Parameter3 (offset 0x60)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_parameter3"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		PATCH_IF (IS_AN_INT "arguments") BEGIN
+			WRITE_LONG 0x60 "%arguments%"
+		END ELSE BEGIN
+			PATCH_FAIL "~%DEST_FILE%~: patch function EFF_parameter3 takes integer values (you provided ~%arguments%~)"
+		END
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_parameter3: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Resource 2 (offset 0x70)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_resource2"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		INNER_PATCH "%arguments%" BEGIN
+			PATCH_IF (BUFFER_LENGTH > 8) BEGIN
+				PATCH_FAIL "~%DEST_FILE%~, EFF_resource2: string ~%entry%~ cannot be longer than 8 characters"
+			END
+		END
+		WRITE_ASCIIE 0x70 "%arguments%" #8
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_resource2: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Resource 3 (offset 0x78)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_resource3"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		INNER_PATCH "%arguments%" BEGIN
+			PATCH_IF (BUFFER_LENGTH > 8) BEGIN
+				PATCH_FAIL "~%DEST_FILE%~, EFF_resource3: string ~%entry%~ cannot be longer than 8 characters"
+			END
+		END
+		WRITE_ASCIIE 0x78 "%arguments%" #8
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_resource3: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////
+//	Sets Parent resource (offset 0x94)
+////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "EFF_parent_resource"
+STR_VAR
+	"arguments" = ""
+BEGIN
+	PATCH_IF ("%DEST_EXT%" STRING_EQUAL_CASE "EFF") BEGIN
+		INNER_PATCH "%arguments%" BEGIN
+			PATCH_IF (BUFFER_LENGTH > 8) BEGIN
+				PATCH_FAIL "~%DEST_FILE%~, EFF_parent_resource: string ~%entry%~ cannot be longer than 8 characters"
+			END
+		END
+		WRITE_ASCIIE 0x94 "%arguments%" #8
+	END ELSE BEGIN
+		PATCH_FAIL "~%DEST_FILE%~, EFF_parent_resource: unexpected type of file"
+	END
+END

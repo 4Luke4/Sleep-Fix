@@ -1,0 +1,481 @@
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+//// The following function patches the given CRE / ITM file according to the GENERAL / RACE / CLASS fields of the CRE being patched
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "GENERAL_RACE_CLASS_FILTER"
+INT_VAR
+	"general" = "-1"
+	"race" = "-1"
+	"class" = "-1"
+	"poly_item" = 0
+STR_VAR
+	"file_ext" = ""
+BEGIN
+	// GENERAL and PLANT share the same immunities, so patch them together
+	PATCH_MATCH "%general%" WITH
+		"%GENERAL_UNDEAD%" "%GENERAL_PLANT%" BEGIN
+			PATCH_MATCH "%file_ext%" WITH
+				"ITM" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						PATCH_IF "%poly_item%" BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"add_global_effect" => "opcode=>318, resource=>{GTSLEEP,GTUNCONS,GTNAUSEA,GTHOPEL}" // Protection from resource
+							END
+						END ELSE BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"clone_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>%general%, parameter2=>103, resource=>{GTSLEEP,GTUNCONS,GTNAUSEA,GTHOPEL}" // Protection from resource
+							END
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				"CRE" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, resource=>{GTSLEEP,GTUNCONS,GTNAUSEA,GTHOPEL}, timing=>9, duration=>0, target=>1, power=>0, parameter1=>0, parameter2=>0, special=>0"	// Protection from resource
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "GENERAL_RACE_CLASS_FILTER: unexpected file type ~%file_ext%~"
+			END
+		END
+		DEFAULT
+	END
+	// Let us now list all RACEs that should be immune to Sleep
+	PATCH_MATCH "%race%" WITH
+		~%RACE_SLIME%~ ~%RACE_GOLEM%~ ~%RACE_DRAGON%~ ~%RACE_MIST%~ ~%RACE_SWORD%~ BEGIN
+			PATCH_MATCH "%file_ext%" WITH
+				"ITM" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						PATCH_IF "%poly_item%" BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"delete_effect" => "match_opcode=>318, match_resource=>GTSLEEP" // Protection from resource
+								"add_global_effect" => "opcode=>318, resource=>GTSLEEP" // Protection from resource
+							END
+						END ELSE BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"clone_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>%race%, parameter2=>104, resource=>GTSLEEP" // Protection from resource
+							END
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				"CRE" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, resource=>GTSLEEP, timing=>9, duration=>0, target=>1, power=>0, parameter1=>0, parameter2=>0, special=>0"	// Protection from resource
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "GENERAL_RACE_CLASS_FILTER: unexpected file type ~%file_ext%~"
+			END
+		END
+		DEFAULT
+	END
+	// Let us now list all RACEs that should be immune to Unconsciousness
+	PATCH_MATCH "%race%" WITH
+		~%RACE_SLIME%~ ~%RACE_GOLEM%~ ~%RACE_MIST%~ ~%RACE_DRAGON%~ ~%RACE_SWORD%~ BEGIN
+			PATCH_MATCH "%file_ext%" WITH
+				"ITM" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						PATCH_IF "%poly_item%" BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"delete_effect" => "match_opcode=>318, match_resource=>GTUNCONS" // Protection from resource
+								"add_global_effect" => "opcode=>318, resource=>GTUNCONS" // Protection from resource
+							END
+						END ELSE BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"clone_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>%race%, parameter2=>104, resource=>GTUNCONS" // Protection from resource
+							END
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				"CRE" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, resource=>GTUNCONS, timing=>9, duration=>0, target=>1, power=>0, parameter1=>0, parameter2=>0, special=>0"	// Protection from resource
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "GENERAL_RACE_CLASS_FILTER: unexpected file type ~%file_ext%~"
+			END
+		END
+		DEFAULT
+	END
+	// Let us now list all RACEs that should be immune to Wing Buffet
+	PATCH_MATCH "%race%" WITH
+		~%RACE_SLIME%~ ~%RACE_DRAGON%~ ~%RACE_SHADOW%~ ~%RACE_SPECTRE%~ ~%RACE_WRAITH%~ ~%RACE_SPECTRAL_UNDEAD%~ ~%RACE_TREANT%~ ~%RACE_SWORD%~ BEGIN
+			PATCH_MATCH "%file_ext%" WITH
+				"ITM" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						PATCH_IF "%poly_item%" BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"add_global_effect" => "opcode=>318, resource=>GTWINGB" // Protection from resource
+							END
+						END ELSE BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"clone_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>%race%, parameter2=>104, resource=>GTWINGB" // Protection from resource
+							END
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				"CRE" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, resource=>GTWINGB, timing=>9, duration=>0, target=>1, power=>0, parameter1=>0, parameter2=>0, special=>0"	// Protection from resource
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "GENERAL_RACE_CLASS_FILTER: unexpected file type ~%file_ext%~"
+			END
+		END
+		DEFAULT
+	END
+	// Let us now list all RACEs that should be immune to Knockdown
+	PATCH_MATCH "%race%" WITH
+		~%RACE_SLIME%~ ~%RACE_BEHOLDER%~ ~%RACE_SHADOW%~ ~%RACE_SPECTRE%~ ~%RACE_WRAITH%~ ~%RACE_DEMILICH%~ ~%RACE_SPECTRAL_UNDEAD%~ ~%RACE_MIST%~ ~%RACE_SWORD%~ ~%RACE_DRAGON%~ BEGIN
+			PATCH_MATCH "%file_ext%" WITH
+				"ITM" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						PATCH_IF "%poly_item%" BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"add_global_effect" => "opcode=>318, resource=>GTKDOWN" // Protection from resource
+							END
+						END ELSE BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"clone_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>%race%, parameter2=>104, resource=>GTKDOWN" // Protection from resource
+							END
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				"CRE" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, resource=>GTKDOWN, timing=>9, duration=>0, target=>1, power=>0, parameter1=>0, parameter2=>0, special=>0"	// Protection from resource
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "GENERAL_RACE_CLASS_FILTER: unexpected file type ~%file_ext%~"
+			END
+		END
+		DEFAULT
+	END
+	// Let us now list all RACEs that should be immune to Nausea
+	PATCH_MATCH "%race%" WITH
+		~%RACE_SLIME%~ ~%RACE_DEMONIC%~ ~%RACE_DARKPLANATAR%~ ~%RACE_PLANATAR%~ ~%RACE_ANTISOLAR%~ ~%RACE_SOLAR%~ ~%RACE_SALAMANDER%~ ~%RACE_MIST%~ ~%RACE_MEPHIT%~ ~%RACE_IMP%~ ~%RACE_GOLEM%~ ~%RACE_SWORD%~ BEGIN
+			PATCH_MATCH "%file_ext%" WITH
+				"ITM" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						PATCH_IF "%poly_item%" BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"delete_effect" => "match_opcode=>318, match_resource=>GTNAUSEA" // Protection from resource
+								"add_global_effect" => "opcode=>318, resource=>GTNAUSEA" // Protection from resource
+							END
+						END ELSE BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"clone_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>%race%, parameter2=>104, resource=>GTNAUSEA" // Protection from resource
+							END
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				"CRE" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, resource=>GTNAUSEA, timing=>9, duration=>0, target=>1, power=>0, parameter1=>0, parameter2=>0, special=>0"	// Protection from resource
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "GENERAL_RACE_CLASS_FILTER: unexpected file type ~%file_ext%~"
+			END
+		END
+		DEFAULT
+	END
+	// Let us now list all RACEs that should be immune to Hopelessness
+	PATCH_MATCH "%race%" WITH
+		~%RACE_SLIME%~ ~%RACE_MIST%~ ~%RACE_GOLEM%~ ~%RACE_SWORD%~ BEGIN
+			PATCH_MATCH "%file_ext%" WITH
+				"ITM" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						PATCH_IF "%poly_item%" BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"delete_effect" => "match_opcode=>318, match_resource=>GTHOPEL" // Protection from resource
+								"add_global_effect" => "opcode=>318, resource=>GTHOPEL" // Protection from resource
+							END
+						END ELSE BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"clone_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>%race%, parameter2=>104, resource=>GTHOPEL" // Protection from resource
+							END
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				"CRE" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, resource=>GTHOPEL, timing=>9, duration=>0, target=>1, power=>0, parameter1=>0, parameter2=>0, special=>0"	// Protection from resource
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "GENERAL_RACE_CLASS_FILTER: unexpected file type ~%file_ext%~"
+			END
+		END
+		DEFAULT
+	END
+	// Let us now list all CLASSes that should be immune to Nausea
+	PATCH_MATCH "%class%" WITH
+		~%CLASS_GREEN_DRAGON%~ BEGIN
+			PATCH_MATCH "%file_ext%" WITH
+				"ITM" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						PATCH_IF "%poly_item%" BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"delete_effect" => "match_opcode=>318, match_resource=>GTNAUSEA" // Protection from resource
+								"add_global_effect" => "opcode=>318, resource=>GTNAUSEA" // Protection from resource
+							END
+						END ELSE BEGIN
+							DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+								"clone_effect" => "check_headers=>0, match_opcode=>101, match_parameter2=>39, opcode=>318, parameter1=>%class%, parameter2=>105, resource=>GTNAUSEA" // Protection from resource
+							END
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				"CRE" BEGIN
+					PATCH_WITH_SCOPE BEGIN
+						DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+							"clone_effect" => "match_opcode=>101, match_parameter2=>39, opcode=>318, resource=>GTNAUSEA, timing=>9, duration=>0, target=>1, power=>0, parameter1=>0, parameter2=>0, special=>0"	// Protection from resource
+						END
+						LPF "APPLY_PATCHES"
+						STR_VAR
+							"edits" = "patch_data"
+						END
+					END
+				END
+				DEFAULT
+					PATCH_FAIL "GENERAL_RACE_CLASS_FILTER: unexpected file type ~%file_ext%~"
+			END
+		END
+		DEFAULT
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//// Special cases
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "GENERAL_RACE_CLASS_FILTER_SPECIAL"
+INT_VAR
+	"animation" = "-1"
+	"general" = "-1"
+	"race" = "-1"
+	"class" = "-1"
+STR_VAR
+	"file_res" = ""
+BEGIN
+	PATCH_MATCH "%race%" WITH
+		// As far as I know, FEYR and WILL-O-WISP do not wear any "creature skin", so we cannot clone op101 (p2=39). As a result, let us manually add the relevant immunit(ies)
+		"%RACE_FEYR%" "%RACE_WILL-O-WISP%" BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					"delete_effect" => "match_opcode=>318, match_resource=>GTHOPEL" // Protection from resource
+					"add_global_effect" => "opcode=>318, resource=>GTHOPEL" // Protection from resource
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+		// As far as I know, FAIRY do not wear any "creature skin", so we cannot clone op101 (p2=39). As a result, let us manually add the relevant immunit(ies)
+		"%RACE_FAIRY%" BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					"delete_effect" => "match_opcode=>318, match_resource=>GTSLEEP" // Protection from resource
+					"add_global_effect" => "opcode=>318, resource=>GTSLEEP" // Protection from resource
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+		// As far as I know, ELEMENTAL do not wear any "creature skin", so we cannot clone op101 (p2=39). As a result, let us manually add the relevant immunit(ies)
+		"%RACE_ELEMENTAL%" BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					"delete_effect" => "match_opcode=>318, match_resource=>{GTSLEEP,GTUNCONS,GTNAUSEA,GTHOPEL}" // Protection from resource
+					"add_global_effect" => "opcode=>318, resource=>{GTSLEEP,GTUNCONS,GTNAUSEA,GTHOPEL}" // Protection from resource
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+		// As far as I know, GENIE do not wear any "creature skin", so we cannot clone op101 (p2=39). As a result, let us manually add the relevant immunit(ies)
+		"%RACE_GENIE%" BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					"delete_effect" => "match_opcode=>318, match_resource=>GTNAUSEA" // Protection from resource
+					"add_global_effect" => "opcode=>318, resource=>GTNAUSEA" // Protection from resource
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+		// Let us now list all RACEs that should be immune to Knockdown (Ground-based attacks)
+		~%RACE_HARPY%~ ~%RACE_WYVERN%~ ~%RACE_IMP%~ ~%RACE_MEPHIT%~ BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					"add_global_effect" => "opcode=>206, parameter1=>-1, resource=>{%CLERIC_EARTHQUAKE%,SPOGRE01,BPGIAQKE,OHBQUAKE,JWSIEGE}, when=>FILE_EXISTS_IN_GAME ~'resref_key'.spl~" // Protection from spell
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+		// Only giant sized GOLEMs should be immune to Wing Buffet
+		~%RACE_GOLEM%~ BEGIN
+			PATCH_MATCH "%animation%" WITH
+				"%ANIMATE_GOLEM_MINI%" "%ANIMATE_SKELETON_FIEND%" "%A7!GOLEM_BONE_DOLL%" "%ANIMATE_A7!GOLEM_FLESH_PST_MINI%" "%ANIMATE_A7!GOLEM_IRON_IWD_MINI%" "%ANIMATE_A7!GOLEM_IRON_MINI%" BEGIN END
+				DEFAULT
+					PATCH_MATCH "%file_res%" WITH
+						"AVARICEM?" "PRIDEM?" "LOVEM?" BEGIN END // BG1: Pride, Love, Avarice
+						"KING" "QUEEN" "ROOK" "BISHOP" "KNIGHT" "PAWN" BEGIN END // BG1: Durlag's Tower Chessboard
+						DEFAULT
+							PATCH_WITH_SCOPE BEGIN
+								DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+									"delete_effect" => "match_opcode=>318, match_resource=>GTWINGB" // Protection from resource
+									"add_global_effect" => "opcode=>318, resource=>GTWINGB"	// Protection from resource
+								END
+								LPF "APPLY_PATCHES"
+								STR_VAR
+									"edits" = "patch_data"
+								END
+							END
+					END
+			END
+		END
+		DEFAULT
+	END
+	// Humanoid Elementals (SALAMANDER) should not be immune to Knockdown
+	PATCH_MATCH "%class%" WITH
+		~%CLASS_ELEMENTAL_WATER%~ ~%CLASS_ELEMENTAL_EARTH%~ ~%CLASS_ELEMENTAL_FIRE%~ ~%CLASS_ELEMENTAL_AIR%~ WHEN ("%race%" != "%RACE_SALAMANDER%") BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					"delete_effect" => "match_opcode=>318, match_resource=>GTKDOWN" // Protection from resource
+					"add_global_effect" => "opcode=>318, resource=>GTKDOWN" // Protection from resource
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+		DEFAULT
+	END
+	// Humanoid Elementals (SALAMANDER) should not be immune to Wing Buffet
+	PATCH_MATCH "%class%" WITH
+		~%CLASS_ELEMENTAL_WATER%~ ~%CLASS_ELEMENTAL_EARTH%~ WHEN ("%race%" != "%RACE_SALAMANDER%") BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					"delete_effect" => "match_opcode=>318, match_resource=>GTWINGB" // Protection from resource
+					"add_global_effect" => "opcode=>318, resource=>GTWINGB" // Protection from resource
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+		DEFAULT
+	END
+	// As far as I know, Pride, Love, and Avarice (from BG1) do not wear any "creature skin", so we cannot clone op101 (p2=39). As a result, let us manually add the relevant immunit(ies)
+	// The same holds for King, Pawn, Rook, Knight, Queen, Bishop (Durlag's Tower Chessboard)
+	PATCH_MATCH "%file_res%" WITH
+		"AVARICEM" "PRIDEM" "LOVEM"
+		"KING" "QUEEN" "ROOK" "BISHOP" "KNIGHT" "PAWN" BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					"delete_effect" => "match_opcode=>318, match_resource=>{GTSLEEP,GTUNCONS,GTNAUSEA,GTHOPEL}" // Protection from resource
+					"add_global_effect" => "opcode=>318, resource=>{GTSLEEP,GTUNCONS,GTNAUSEA,GTHOPEL}" // Protection from resource
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+		DEFAULT
+	END
+END

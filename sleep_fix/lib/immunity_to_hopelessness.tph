@@ -1,0 +1,215 @@
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+//// The following functions check all CRE / ITM / SPL files for morale and/or mind-affecting immunity (op101, p2=175 OR op101, p2=23)
+//// This step should (drastically?) decrease installation times...
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "CHECK_CRE_MORALE_IMMUNITY"
+RET
+	"success"
+BEGIN
+	// Init
+	SET "patch" = 0
+	SET "skip" = 0
+	// Main
+	// Do not use `GET_OFFSET_ARRAY "fx_array" CRE_V10_EFFECTS`
+	// In so doing, we'll avoid patching false positives (i.e., we'll not force CRE files to use EFF V2 effects internally) and decrease installation times
+	READ_BYTE 0x33 ~fx_version~
+	SET ~fx_size~ = "%fx_version%" == 0 ? 0x30 : 0x108
+	READ_LONG 0x2c4 ~ofs_fx~
+	READ_LONG 0x2c8 ~num_fx~
+	FOR (~idx~ = 0; "%idx%" < "%num_fx%"; ++"idx") BEGIN
+		SET "ofs" = "%ofs_fx%" + ("%idx%" * "%fx_size%")
+		PATCH_IF ("%fx_version%") BEGIN
+			READ_LONG ("%ofs%" + 0x8) "cur_op"
+			READ_LONG ("%ofs%" + 0x18) "cur_p2"
+		END ELSE BEGIN
+			READ_SHORT "%ofs%" "cur_op"
+			READ_LONG ("%ofs%" + 0x8) "cur_p2"
+		END
+		PATCH_MATCH ("%cur_op%") WITH
+			"101" WHEN ("%cur_p2%" == 23) BEGIN
+				// Immunity to effect => Effect: Morale modifier
+				SET "patch" = 1
+			END
+			"208" BEGIN
+				// Minimum HP
+				SET "skip" = 1
+				SET "idx" = "%num_fx%" + 1 // Kill FOR-loop
+			END
+			"367" BEGIN
+				// Minimum base stats
+				SET "skip" = 1
+				SET "idx" = "%num_fx%" + 1 // Kill FOR-loop
+			END
+			DEFAULT
+		END
+	END
+	SET "success" = "%patch%" AND !"%skip%"
+END
+
+DEFINE_PATCH_FUNCTION "CHECK_ITM_MORALE_IMMUNITY"
+RET
+	"success"
+BEGIN
+	// Init
+	SET "patch" = 0
+	SET "skip" = 0
+	// Main
+	GET_OFFSET_ARRAY "fx_array" ITM_V10_GEN_EFFECTS
+	PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+		PATCH_MATCH (SHORT_AT ("%fx_off%" + 0x0)) WITH
+			"101" WHEN (LONG_AT ("%fx_off%" + 0x8) == 23) BEGIN
+				// Immunity to effect => Effect: Morale modifier
+				SET "patch" = 1
+			END
+			"208" BEGIN
+				// Minimum HP
+				SET "skip" = 1
+			END
+			"367" BEGIN
+				// Minimum base stats
+				SET "skip" = 1
+			END
+			DEFAULT
+		END
+	END
+	SET "success" = "%patch%" AND !"%skip%"
+	// If you didn't find it, try looking into feature block(s)...
+	PATCH_IF !("%success%") BEGIN
+		// Init
+		SET "patch" = 0
+		SET "skip" = 0
+		// Main
+		GET_OFFSET_ARRAY "ab_array" ITM_V10_HEADERS
+		PHP_EACH "ab_array" AS "_" => "ab_off" BEGIN
+			GET_OFFSET_ARRAY2 "fx_array" "%ab_off%" ITM_V10_HEAD_EFFECTS
+			PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+				PATCH_MATCH (SHORT_AT ("%fx_off%" + 0x0)) WITH
+					"101" WHEN (LONG_AT ("%fx_off%" + 0x8) == 23) BEGIN
+						// Immunity to effect => Effect: Morale modifier
+						SET "patch" = 1
+					END
+					"208" BEGIN
+						// Minimum HP
+						SET "skip" = 1
+					END
+					"367" BEGIN
+						// Minimum base stats
+						SET "skip" = 1
+					END
+					DEFAULT
+				END
+			END
+		END
+		SET "success" = "%patch%" AND !"%skip%"
+	END
+END
+
+DEFINE_PATCH_FUNCTION "CHECK_SPL_MORALE_IMMUNITY"
+RET
+	"success"
+BEGIN
+	// Init
+	SET "patch" = 0
+	SET "skip" = 0
+	// Main
+	GET_OFFSET_ARRAY "fx_array" SPL_V10_GEN_EFFECTS
+	PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+		PATCH_MATCH (SHORT_AT ("%fx_off%" + 0x0)) WITH
+			"101" WHEN (LONG_AT ("%fx_off%" + 0x8) == 23) BEGIN
+				// Immunity to effect => Effect: Morale modifier
+				SET "patch" = 1
+			END
+			"208" BEGIN
+				// Minimum HP
+				SET "skip" = 1
+			END
+			"367" BEGIN
+				// Minimum base stats
+				SET "skip" = 1
+			END
+			DEFAULT
+		END
+	END
+	SET "success" = "%patch%" AND !"%skip%"
+	// If you didn't find it, try looking into feature block(s)...
+	PATCH_IF !("%success%") BEGIN
+		// Init
+		SET "patch" = 0
+		SET "skip" = 0
+		// Main
+		GET_OFFSET_ARRAY "ab_array" SPL_V10_HEADERS
+		PHP_EACH "ab_array" AS "_" => "ab_off" BEGIN
+			GET_OFFSET_ARRAY2 "fx_array" "%ab_off%" SPL_V10_HEAD_EFFECTS
+			PHP_EACH "fx_array" AS "_" => "fx_off" BEGIN
+				PATCH_MATCH (SHORT_AT ("%fx_off%" + 0x0)) WITH
+					"101" WHEN (LONG_AT ("%fx_off%" + 0x8) == 23) BEGIN
+						// Immunity to effect => Effect: Morale modifier
+						SET "patch" = 1
+					END
+					"208" BEGIN
+						// Minimum HP
+						SET "skip" = 1
+					END
+					"367" BEGIN
+						// Minimum base stats
+						SET "skip" = 1
+					END
+					DEFAULT
+				END
+			END
+		END
+		SET "success" = "%patch%" AND !"%skip%"
+	END
+END
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Patching creatures / items / spells that grant immunity to Morale and/or Mind-Affecting effects
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ACTION_FUNCTION "sf_immunity_to_hopelessness"
+BEGIN
+	SILENT
+	// Main
+	COPY_EXISTING_REGEXP "^.+\.\(cre\|itm\|spl\)$" "override"
+		// Do not apply LFO directly when mass patching files!!!
+		PATCH_MATCH "%DEST_EXT%" WITH
+			"CRE" BEGIN
+				LPF "CHECK_CRE_MORALE_IMMUNITY"
+				RET
+					"success"
+				END
+			END
+			"ITM" BEGIN
+				LPF "CHECK_ITM_MORALE_IMMUNITY"
+				RET
+					"success"
+				END
+			END
+			"SPL" BEGIN
+				LPF "CHECK_SPL_MORALE_IMMUNITY"
+				RET
+					"success"
+				END
+			END
+			DEFAULT
+				PATCH_FAIL "~%DEST_FILE%~, sf_immunity_to_hopelessness: Unexpected file"
+		END
+		// Main
+		PATCH_IF "%success%" BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					"delete_effect" => "match_opcode=>318, match_resource=>GTHOPEL" // Protection from resource – meant to avoid redundant effects (i.e., both op318|p1=UNDEAD|p2=GENERAL|res=GTHOPEL and op318|p1=0|p2=0|res=GTHOPEL). Its impact on installation times seems to be negligible...?
+					"clone_effect" => "match_opcode=>101, match_parameter2=>23, opcode=>318, parameter1=>0, parameter2=>0, resource=>GTHOPEL, special=>0" // Protection from resource
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+	BUT_ONLY_IF_IT_CHANGES
+	VERBOSE
+END
