@@ -200,6 +200,8 @@ BEGIN
 					TEXT_SPRINT "___#match_resource" "SAME"
 					TEXT_SPRINT "___#resource" "SAME"
 					TEXT_SPRINT "___#insert" "above"
+					// Extra condition(s)
+					TEXT_SPRINT "___#when" "1"
 					// Overwrite default values (if needed!)
 					WHILE ("%arguments%" STRING_COMPARE_CASE "") BEGIN
 						LPF "RETURN_FIRST_ENTRY"
@@ -242,7 +244,8 @@ BEGIN
 							"\(match_\)?savebonus"
 							"\(match_\)?special"
 							// auxiliary variables
-							"insert" BEGIN
+							"insert"
+							"when" BEGIN
 								TEXT_SPRINT "___#%key%" "%value%"
 							END
 							DEFAULT
@@ -267,7 +270,15 @@ BEGIN
 							END
 						END
 						// Main
-						LPF "CLONE_EFFECT_EX" END
+						LPF "EVALUATE_WHEN_CLAUSE"
+						STR_VAR
+							"condition_value" = "%___#when%"
+						RET
+							"success"
+						END
+						PATCH_IF "%success%" BEGIN
+							LPF "CLONE_EFFECT_EX" END
+						END
 					END
 				END
 				DEFAULT

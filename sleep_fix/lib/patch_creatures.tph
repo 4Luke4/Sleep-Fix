@@ -183,6 +183,79 @@ BEGIN
 END
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//// Adjust the current CRE file
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "ADJUST_CRE_FILE"
+BEGIN
+	// As far as I know, Pride, Love, and Avarice (from BG1) do not wear any "creature skin", so we cannot clone op101 (p2=39). As a result, let us manually add op101 (p2=39)
+	// The same holds for King, Pawn, Rook, Knight, Queen, Bishop (Durlag's Tower Chessboard)
+	PATCH_MATCH "%DEST_RES%" WITH
+		"AVARICEM" "PRIDEM" "LOVEM"
+		"KING" "QUEEN" "ROOK" "BISHOP" "KNIGHT" "PAWN" BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+					"add_global_effect" => "opcode=>101, parameter2=>39" // Immunity to effect => Sleep
+				END
+				LPF "APPLY_PATCHES"
+				STR_VAR
+					"edits" = "patch_data"
+				END
+			END
+		END
+		DEFAULT
+	END
+	// As far as I know, GENIE do not wear any "creature skin", so we cannot clone op101 (p2=39). As a result, let us make a "creature skin" for them.
+	// Ditto for ELEMENTAL, FEYR, FAIRY, and WILL-O-WISP
+	// Ditto for HARPY, WYVERN, IMP, and MEPHIT
+	PATCH_MATCH BYTE_AT (0x272) WITH
+		"%RACE_FEYR%" "%RACE_WILL-O-WISP%" "%RACE_FAIRY%" "%RACE_ELEMENTAL%" "%RACE_GENIE%"
+		~%RACE_HARPY%~ ~%RACE_WYVERN%~ ~%RACE_IMP%~ ~%RACE_MEPHIT%~ BEGIN
+			PATCH_WITH_SCOPE BEGIN
+				PATCH_IF (SSHORT_AT (LONG_AT (0x2B8) + 0x22) == "-1") BEGIN
+					// The CLOAK slot is usually unused...
+					INNER_ACTION BEGIN
+						ACTION_IF !(FILE_EXISTS_IN_GAME ~gtsfimm.itm~) BEGIN
+							COPY_EXISTING "CLCK01.ITM" "override/gtsfimm.itm"
+								WRITE_LONG NAME2 "-1"
+								//SAY UNIDENTIFIED_DESC @0
+								WRITE_LONG DESC "-1"
+								WRITE_LONG 0x18 0 // Flags
+								WRITE_BYTE 0x2F 0 // Unusable by 4/4
+								WRITE_SHORT 0x42 0 // Lore to identify
+								WRITE_LONG 0x34 0 // Price
+								WRITE_LONG 0x4C 0 // Weight
+								DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+									// Global effect(s)
+									"delete_effect" => "default"
+									"add_global_effect" => "opcode=>101, parameter2=>39" // Immunity to effect => Sleep
+								END
+								LPF "APPLY_PATCHES"
+								STR_VAR
+									"edits" = "patch_data"
+								END
+							BUT_ONLY_IF_IT_CHANGES
+						END
+					END
+					// Patch the "skin" into creature
+					ADD_CRE_ITEM ~gtsfimm~ #0 #0 #0 ~unstealable&undroppable~ ~cloak~
+				END ELSE BEGIN
+					// ... if instead it's already occupied, then patch the CRE file
+					DEFINE_ASSOCIATIVE_ARRAY "patch_data" BEGIN
+						"add_global_effect" => "opcode=>101, parameter2=>39" // Immunity to effect => Sleep
+					END
+					LPF "APPLY_PATCHES"
+					STR_VAR
+						"edits" = "patch_data"
+					END
+				END
+			END
+		END
+		DEFAULT
+	END
+END
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //// Patch creature items
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -197,6 +270,8 @@ BEGIN
 			PATCH_MATCH "%DEST_RES%" WITH
 				~ohb5bhal~ ~ppbhaal~ ~bhaal01~ ~demogor2~ ~trgbard~ ~belhif~ BEGIN END // Bhaal, Demogorgon, Luremaster, Belhifet (arbitrary bosses) (ignore?)
 				DEFAULT
+					// Adjust the current CRE file if needed (so that it will be correctly patched later on)
+					LPF "ADJUST_CRE_FILE" END
 					// Get some relevant info
 					TEXT_SPRINT "CRE_res" "%DEST_RES%"
 					READ_LONG 0x28 "CRE_animation"

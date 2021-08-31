@@ -1,0 +1,245 @@
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	SAY NAME1
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "say_name1"
+STR_VAR
+	"arguments" = ""	// @123
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"CRE" "ITM" "SPL" BEGIN
+			LPF "RESOLVE_STR_REF"
+			STR_VAR
+				"input" = "%arguments%"
+			RET
+				"arguments" = "output"
+			END
+			WRITE_LONG NAME1 "%arguments%"
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, say_name1: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	Set NAME1
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "set_name1"
+STR_VAR
+	"arguments" = ""	// 123
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"CRE" "ITM" "SPL" BEGIN
+			PATCH_IF (IS_AN_INT "arguments") BEGIN
+				WRITE_LONG NAME1 "%arguments%"
+			END ELSE BEGIN
+				PATCH_FAIL "~%DEST_FILE%~: patch function set_name1 takes integer values (you provided ~%arguments%~)"
+			END
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, set_name1: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	SAY NAME2
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "say_name2"
+STR_VAR
+	"arguments" = ""	// @123
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"CRE" "ITM" "SPL" "STO" BEGIN
+			LPF "RESOLVE_STR_REF"
+			STR_VAR
+				"input" = "%arguments%"
+			RET
+				"arguments" = "output"
+			END
+			WRITE_LONG NAME2 "%arguments%"
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, say_name2: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	Set NAME2
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "set_name2"
+STR_VAR
+	"arguments" = ""	// 123
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"CRE" "ITM" "SPL" "STO" BEGIN
+			PATCH_IF (IS_AN_INT "arguments") BEGIN
+				WRITE_LONG NAME2 "%arguments%"
+			END ELSE BEGIN
+				PATCH_FAIL "~%DEST_FILE%~: patch function set_name2 takes integer values (you provided ~%arguments%~)"
+			END
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, set_name2: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	SAY UNIDENTIFIED_DESC
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "say_unidentified_desc"
+STR_VAR
+	"arguments" = ""	// @123
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"ITM" "SPL" BEGIN
+			LPF "RESOLVE_STR_REF"
+			STR_VAR
+				"input" = "%arguments%"
+			RET
+				"arguments" = "output"
+			END
+			WRITE_LONG UNIDENTIFIED_DESC "%arguments%"
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, say_unidentified_desc: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	Set UNIDENTIFIED_DESC
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "set_unidentified_desc"
+STR_VAR
+	"arguments" = ""	// 123
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"ITM" "SPL" BEGIN
+			PATCH_IF (IS_AN_INT "arguments") BEGIN
+				WRITE_LONG UNIDENTIFIED_DESC "%arguments%"
+			END ELSE BEGIN
+				PATCH_FAIL "~%DEST_FILE%~: patch function set_unidentified_desc takes integer values (you provided ~%arguments%~)"
+			END
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, set_unidentified_desc: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	Update UNIDENTIFIED_DESC
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "update_unidentified_desc"
+STR_VAR
+	"arguments" = ""	// Must be a function
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"ITM" "SPL" BEGIN
+			// stolen from BG2 Tweak Pack at G3
+			// modified to take parameter ~%text_update%~, the function name of the REPLACE_TEXTUALLY to execute
+			PATCH_IF (SLONG_AT (UNIDENTIFIED_DESC) < 2147483646) AND (SLONG_AT (UNIDENTIFIED_DESC) >= 0) BEGIN // verify description is valid
+				READ_STRREF UNIDENTIFIED_DESC ~description~
+				INNER_PATCH_SAVE ~new_desc~ ~%description%~ BEGIN
+					LAUNCH_PATCH_FUNCTION ~%arguments%~ END
+				END
+				SAY_EVALUATED UNIDENTIFIED_DESC ~%new_desc%~
+			END
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, update_unidentified_desc: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	SAY DESC
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "say_desc"
+STR_VAR
+	"arguments" = ""	// @123
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"ITM" "SPL" BEGIN
+			LPF "RESOLVE_STR_REF"
+			STR_VAR
+				"input" = "%arguments%"
+			RET
+				"arguments" = "output"
+			END
+			WRITE_LONG DESC "%arguments%"
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, say_desc: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	Set DESC
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "set_desc"
+STR_VAR
+	"arguments" = ""	// 123
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"ITM" "SPL" BEGIN
+			PATCH_IF (IS_AN_INT "arguments") BEGIN
+				WRITE_LONG DESC "%arguments%"
+			END ELSE BEGIN
+				PATCH_FAIL "~%DEST_FILE%~: patch function set_desc takes integer values (you provided ~%arguments%~)"
+			END
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, set_desc: unexpected type of file"
+	END
+END
+
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+//	Update DESC
+////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////
+
+DEFINE_PATCH_FUNCTION "update_desc"
+STR_VAR
+	"arguments" = ""	// Must be a function
+BEGIN
+	PATCH_MATCH "%DEST_EXT%" WITH
+		"ITM" "SPL" BEGIN
+			// stolen from BG2 Tweak Pack at G3
+			// modified to take parameter ~%text_update%~, the function name of the REPLACE_TEXTUALLY to execute
+			PATCH_IF (SLONG_AT (DESC) < 2147483646) AND (SLONG_AT (DESC) >= 0) BEGIN // verify description is valid
+				READ_STRREF DESC ~description~
+				INNER_PATCH_SAVE ~new_desc~ ~%description%~ BEGIN
+					LAUNCH_PATCH_FUNCTION ~%arguments%~ END
+				END
+				SAY_EVALUATED DESC ~%new_desc%~
+			END
+		END
+		DEFAULT
+			PATCH_FAIL "~%DEST_FILE%~, update_desc: unexpected type of file"
+	END
+END
