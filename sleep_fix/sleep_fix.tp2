@@ -12,7 +12,7 @@ BACKUP ~weidu_external/sleep_fix/backup~
 /////////////////////////////////////////////////////////////////////////////////////////////
 
 SUPPORT ~https://github.com/4Luke4/Sleep-Fix~
-VERSION ~v0.2~
+VERSION ~v0.2.1~
 README ~sleep_fix/doc/readme-sleep_fix.pdf~
 
 AUTO_EVAL_STRINGS
