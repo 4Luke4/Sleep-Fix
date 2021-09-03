@@ -206,10 +206,10 @@ BEGIN
 		DEFAULT
 	END
 	// As far as I know, GENIE do not wear any "creature skin", so we cannot clone op101 (p2=39). As a result, let us make a "creature skin" for them.
-	// Ditto for ELEMENTAL, FEYR, FAIRY, and WILL-O-WISP
+	// Ditto for ELEMENTAL, FEYR, FAIRY, HOOK_HORROR, and WILL-O-WISP
 	// Ditto for HARPY, WYVERN, IMP, and MEPHIT
 	PATCH_MATCH BYTE_AT (0x272) WITH
-		"%RACE_FEYR%" "%RACE_WILL-O-WISP%" "%RACE_FAIRY%" "%RACE_ELEMENTAL%" "%RACE_GENIE%"
+		"%RACE_FEYR%" "%RACE_WILL-O-WISP%" "%RACE_FAIRY%" "%RACE_ELEMENTAL%" "%RACE_GENIE%" "%RACE_HOOK_HORROR%"
 		~%RACE_HARPY%~ ~%RACE_WYVERN%~ ~%RACE_IMP%~ ~%RACE_MEPHIT%~ BEGIN
 			PATCH_WITH_SCOPE BEGIN
 				PATCH_IF (SSHORT_AT (LONG_AT (0x2B8) + 0x22) == "-1") BEGIN
